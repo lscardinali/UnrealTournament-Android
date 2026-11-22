@@ -36,6 +36,25 @@ OldUnreal's official installers do.
 - A controller: built in (handhelds) or connected. Touch only drives the menu cursor.
 - About 1.6 GB free during setup (about 800 MB once installed).
 
+### Tested devices: we need your reports!
+
+So far this has **only been tested on the Retroid Pocket 6 (Snapdragon 8 Gen 2, Adreno 740, Android 13)**. Other
+64-bit Android devices with Vulkan should work, but nobody has tried them yet.
+
+If you run it on anything else, please
+[open an issue](https://github.com/lscardinali/UnrealTournament-Android/issues/new) and tell us:
+
+- the device, chipset and Android version;
+- whether setup, the menus, a match and online play work;
+- the frame rate and anything odd (turn on the overlay with L3 + R3 or in Mod → Handheld Settings);
+- if it crashes, the log from `adb logcat -s utloader UTAndroid SDL AndroidRuntime`.
+
+Reports of what works are just as useful as bug reports.
+
+| Device | Chipset | Status |
+|---|---|---|
+| Retroid Pocket 6 | Snapdragon 8 Gen 2 | Works: 120 fps at 1080p, controller, gyro, online |
+
 ## Installing
 
 1. Install the APK (`app-release.apk`) from the releases page.
