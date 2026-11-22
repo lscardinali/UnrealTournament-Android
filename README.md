@@ -5,6 +5,13 @@ Unreal Tournament (1999, Game of the Year Edition) on Android handhelds, running
 app. No emulation, no X server, no Linux container. Built and tuned on the Retroid Pocket 6 (Snapdragon 8 Gen 2),
 where it runs at a locked 120 fps at 1920×1080.
 
+> **This port exists because of [OldUnreal](https://www.oldunreal.com/).** Everything that makes it possible, from
+> the 469 patch and its native Linux arm64 build to the Vulkan renderer, the modern SDL3 and OpenAL support, and
+> the official installers and download mirrors, is their work, done for free over many years. This project is only
+> a thin layer that brings their build to Android handhelds. If you enjoy it, please
+> **[donate to OldUnreal](https://www.oldunreal.com/phpBB3/donate)** to help cover their servers and development
+> hardware, and join their forums and wiki.
+
 **The app contains no game files.** On first launch it downloads the game from OldUnreal's servers, the same way
 OldUnreal's official installers do.
 
@@ -129,7 +136,14 @@ PC unit tests (the CD image reader and map decompressor against real data, when 
   - libgcc_s and libstdc++ (Debian): GPL-3.0 with the GCC Runtime Library Exception.
   - Apache Commons Compress and Commons IO/Lang: Apache-2.0. XZ for Java: 0BSD. AndroidX, Jetpack Compose and
     Kotlin: Apache-2.0.
-- This project's own code (loader, shim, SDL bridge, PadUI, app): see `LICENSE`.
+- This project's own code (loader, shim, SDL bridge, PadUI, app): MIT, see `LICENSE`. It's permissive on purpose,
+  so OldUnreal or anyone else can reuse any of it, including in closed-source builds.
 
 Unreal and Unreal Tournament are trademarks of Epic Games, Inc. This is an unofficial fan project, not affiliated
 with or endorsed by Epic Games or OldUnreal.
+
+## Thanks
+
+All credit for keeping Unreal Tournament alive goes to the **OldUnreal** team and contributors. This project
+builds on their 469 patch, and the game runs on their code. Please support them:
+**https://www.oldunreal.com/phpBB3/donate**.
