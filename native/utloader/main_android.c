@@ -40,7 +40,84 @@ static struct {
     volatile int32_t touch_dx, touch_dy; /* touchpad cursor: movement not yet applied, in window pixels */
     volatile uint32_t touch_taps;        /* touchpad taps (left clicks) not yet applied */
     volatile int32_t gyro_yaw, gyro_pitch; /* gyro angle turned and not yet applied, micro-radians */
-} shared_state;
+    volatile int32_t perf_overlay;       /* handheld settings (files/handheld.cfg): performance overlay shown */
+    volatile float stick_curve;          /* look stick response exponent (1 = linear) */
+    volatile float turn_boost;           /* extra turn speed at full yaw deflection (0 = off, 1 = up to 2x) */
+    volatile int32_t gyro_on;            /* gyro aiming enabled (the app stops the sensor otherwise) */
+    volatile int32_t fps_limit;          /* display refresh to ask for: 0 = the panel's maximum, else e.g. 60 / 90 */
+} shared_state = { .stick_curve = 1.5f, .turn_boost = 1.0f, .gyro_on = 1 };
+
+/*
+ * Handheld settings: set from PadUI's Handheld Settings window through the clipboard (shim.c intercepts
+ * "utandroid:" texts) and from the app (L3+R3), kept in files/handheld.cfg.
+ *   "get"                         -> "perf=1 curve=1.50 boost=1.00"
+ *   "set perf=0|1|toggle curve=F boost=F"
+ */
+static char handheld_path[512];
+
+static void handheld_apply(const char *args) {
+    char buf[256];
+    snprintf(buf, sizeof buf, "%s", args);
+    for (char *save = NULL, *tok = strtok_r(buf, " \n", &save); tok; tok = strtok_r(NULL, " \n", &save)) {
+        char *eq = strchr(tok, '=');
+        if (!eq) continue;
+        *eq = 0;
+        const char *v = eq + 1;
+        if (!strcmp(tok, "perf")) {
+            shared_state.perf_overlay = !strcmp(v, "toggle") ? !shared_state.perf_overlay : atoi(v) != 0;
+        } else if (!strcmp(tok, "curve")) {
+            float f = strtof(v, NULL);
+            if (f >= 1.0f && f <= 3.0f) shared_state.stick_curve = f;
+        } else if (!strcmp(tok, "boost")) {
+            float f = strtof(v, NULL);
+            if (f >= 0.0f && f <= 2.0f) shared_state.turn_boost = f;
+        } else if (!strcmp(tok, "gyro")) {
+            shared_state.gyro_on = atoi(v) != 0;
+        } else if (!strcmp(tok, "fps")) {
+            int n = atoi(v);
+            if (n == 0 || (n >= 30 && n <= 240)) shared_state.fps_limit = n;
+        }
+    }
+}
+
+static void handheld_save(void) {
+    FILE *f = fopen(handheld_path, "w");
+    if (!f) return;
+    fprintf(f, "perf=%d curve=%.2f boost=%.2f gyro=%d fps=%d\n", (int)shared_state.perf_overlay,
+            shared_state.stick_curve, shared_state.turn_boost, (int)shared_state.gyro_on, (int)shared_state.fps_limit);
+    fclose(f);
+}
+
+static void handheld_load(const char *files) {
+    snprintf(handheld_path, sizeof handheld_path, "%s/handheld.cfg", files);
+    FILE *f = fopen(handheld_path, "r");
+    if (!f) return;
+    char line[256];
+    if (fgets(line, sizeof line, f)) handheld_apply(line);
+    fclose(f);
+}
+
+/* Returns the reply for a "utandroid:" command (static buffer). */
+const char *utl_handheld_command(const char *cmd) {
+    static char reply[128];
+    if (!strncmp(cmd, "set ", 4)) {
+        handheld_apply(cmd + 4);
+        handheld_save();
+    }
+    snprintf(reply, sizeof reply, "perf=%d curve=%.2f boost=%.2f gyro=%d fps=%d", (int)shared_state.perf_overlay,
+             shared_state.stick_curve, shared_state.turn_boost, (int)shared_state.gyro_on, (int)shared_state.fps_limit);
+    return reply;
+}
+
+/* App side (L3+R3 overlay toggle). */
+JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_nativeHandheld(JNIEnv *env, jclass c,
+                                                                                               jstring cmd) {
+    const char *s = (*env)->GetStringUTFChars(env, cmd, NULL);
+    if (s) {
+        utl_handheld_command(s);
+        (*env)->ReleaseStringUTFChars(env, cmd, s);
+    }
+}
 
 /* Gyro aiming (GyroAim.kt): angle turned since the last call, micro-radians (yaw right +, pitch up +). */
 JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_nativeGyro(JNIEnv *env, jclass c,
@@ -75,9 +152,10 @@ JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_
 /* NativeGameActivity reads the menu cursor (drawn as an Android overlay: no pointer on Android). */
 JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_nativeCursorState(JNIEnv *env, jclass c,
                                                                                                    jfloatArray out) {
-    jfloat v[5] = { (jfloat)shared_state.menu, shared_state.cursor_x, shared_state.cursor_y,
-                    (jfloat)shared_state.window_w, (jfloat)shared_state.window_h };
-    (*env)->SetFloatArrayRegion(env, out, 0, 5, v);
+    jfloat v[8] = { (jfloat)shared_state.menu, shared_state.cursor_x, shared_state.cursor_y,
+                    (jfloat)shared_state.window_w, (jfloat)shared_state.window_h, (jfloat)shared_state.perf_overlay,
+                    (jfloat)shared_state.fps_limit, (jfloat)shared_state.gyro_on };
+    (*env)->SetFloatArrayRegion(env, out, 0, 8, v);
 }
 
 /* The perf overlay's frames file ("UTF1", uint32 count at +4), created by the activity. */
@@ -178,11 +256,15 @@ typedef struct {
     int status;
 } game_args;
 
+/* Which game: UT by default; UTL_EXE / UTL_SYSTEM_DIR / UTL_HOME (set by the activity) run another one, e.g.
+   Unreal 227's SystemARM64/unreal-bin-arm64 (research/unreal-227-spike.md). */
+static const char *game_exe = "ut-bin-arm64";
+
 static void *game_thread(void *p) {
     game_args *g = p;
     utl_module *gcc = utl_load("libgcc_s.so.1");
     utl_module *cxx = utl_load("libstdc++.so.6");
-    utl_module *exe = utl_load("ut-bin-arm64");
+    utl_module *exe = utl_load(game_exe);
     if (!gcc || !cxx || !exe) {
         utl_log("could not load the game (libgcc_s %p, libstdc++ %p, ut-bin %p)", gcc, cxx, exe);
         g->status = 127;
@@ -212,6 +294,9 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char *argv[]) {
 
     snprintf(home, sizeof home, "%s/home", files);
     snprintf(system_dir, sizeof system_dir, "%s/game/System", files);
+    if (getenv("UTL_HOME")) snprintf(home, sizeof home, "%s", getenv("UTL_HOME"));
+    if (getenv("UTL_SYSTEM_DIR")) snprintf(system_dir, sizeof system_dir, "%s", getenv("UTL_SYSTEM_DIR"));
+    if (getenv("UTL_EXE")) game_exe = getenv("UTL_EXE");
     snprintf(glibc_dir, sizeof glibc_dir, "%s/glibc", files);
     mkdir(home, 0700);
     setenv("HOME", home, 1);
@@ -228,11 +313,12 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char *argv[]) {
     setenv("UTANDROID_SHARED", shared_addr, 1);
     utl_frames_shared = &shared_state.frames;
     map_frames_file(files);
+    handheld_load(files);
     if (utl_tls_init() != 0) return 1;
     utl_add_search_dir(system_dir);
     utl_add_search_dir(glibc_dir);
 
-    char *game_argv[32] = { "ut-bin-arm64" };
+    char *game_argv[32] = { (char *)game_exe };
     int n = 1;
     for (int i = 2; i < argc && n < 31; i++) game_argv[n++] = argv[i];
     game_argv[n] = NULL;

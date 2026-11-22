@@ -52,7 +52,15 @@ object GameConfig {
     )
 
     /** Bump to re-apply [userDefaults] and [systemDefaults] on existing installs (overwrites the user's changes). */
-    const val DEFAULTS_VERSION = 6 // 2: AutoAim floor; 3: view bob back; 4: GUI scale 3.0; 5: gyro axes; 6: gyro base speed
+    const val DEFAULTS_VERSION = 7 // 2: AutoAim floor; 3: view bob back; 4: GUI scale 3.0; 5: gyro axes; 6: gyro base speed; 7: look axes 2x
+
+    /**
+     * From version 7 on, an install that already has the defaults only gets each version's own changes (a full
+     * re-apply would undo the player's settings). Fresh installs get the full sets.
+     */
+    private val userMigrations: Map<Int, Map<String, Map<String, String>>> = mapOf(
+        7 to mapOf("Engine.Input" to mapOf("JoyZ" to "Axis aTurn Speed=1600", "JoyR" to "Axis aLookUp Speed=-1100")),
+    )
 
     val systemDefaults: Map<String, Map<String, String>> = mapOf(
         // UWindow menus at 3x, the slider's maximum (640x360 virtual desktop on 1080p). Auto scaling reads ~96 DPI on
@@ -84,8 +92,10 @@ object GameConfig {
             "Joy16" to "SwitchWeapon 9",               // DRight Rocket
             "JoyX" to "Axis aStrafe Speed=1500",
             "JoyY" to "Axis aBaseY Speed=-1500",
-            "JoyZ" to "Axis aTurn Speed=800",
-            "JoyR" to "Axis aLookUp Speed=-550",
+            // Look stick: SDL_utandroid.c sends it at half range (room for the turn boost), so these are 2x the
+            // tuned 800 / -550.
+            "JoyZ" to "Axis aTurn Speed=1600",
+            "JoyR" to "Axis aLookUp Speed=-1100",
             // Gyro aiming (GyroAim.kt -> SDL_utandroid.c axes 4/5): the axes carry the angle turned per frame;
             // Speed 1000 would be "1x" (GYRO_AXIS_SPEED there), 16000 is the tuned 100% (PadUI's Gyro Aiming window
             // rewrites these as 16000 x sensitivity; keep its BaseSpeed in step).
@@ -121,7 +131,12 @@ object GameConfig {
         apply(utIni, defaultIni, system(width, height))
         apply(userIni, defUserIni, emptyMap()) // seeds User.ini on first run
         val prefs = context.getSharedPreferences("utandroid", Context.MODE_PRIVATE)
-        if (prefs.getInt("iniDefaultsVersion", 0) < DEFAULTS_VERSION) {
+        val have = prefs.getInt("iniDefaultsVersion", 0)
+        if (have in 6 until DEFAULTS_VERSION) {
+            for ((v, changes) in userMigrations) if (v > have) apply(userIni, defUserIni, changes)
+            prefs.edit().putInt("iniDefaultsVersion", DEFAULTS_VERSION).apply()
+            android.util.Log.i("UTAndroid", "UT ini defaults migrated v$have -> v$DEFAULTS_VERSION")
+        } else if (have < DEFAULTS_VERSION) {
             apply(utIni, defaultIni, systemDefaults)
             apply(userIni, defUserIni, userDefaults)
             prefs.edit().putInt("iniDefaultsVersion", DEFAULTS_VERSION).apply()

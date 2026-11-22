@@ -388,3 +388,13 @@ need a text-entry path, Down from a scroll pane's last visible row can jump to t
   CursorOverlay only draws the cursor for 3 s after touchpad use. The sticks no longer move the cursor and Y/X no
   longer click on the native build; the X11 backup keeps its stick cursor. Verified: hidden by default, relative
   swipe moves (research/tc1..tc5.png); user confirmed it works on the device.
+- Polish (2026-11-22, built, untested): tab strip D-pad follows the drawn layout (Left/Right within the row, Up/Down
+  between rows, Down from the bottom row leaves the strip; L1/R1 keep list order). Scrolling pages: D-pad prefers
+  controls in the same scroll pane before the dialog's buttons, so Down scrolls instead of jumping to Close.
+  Not done: pad buttons first in the key bindings grid. UnrealScript can't index another object's large arrays
+  (BoundKey1[100] is 400 bytes, "Variable is too large ... 255 max") and the grid's classes are hardcoded in
+  UMenuOptionsClientWindow/UMenuCustomizeScrollClient, so PadUI can't reorder or replace them.
+- Mod > Handheld Settings (was Gyro Aiming): gyro on/sensitivity/invert, look stick curve (1.0-3.0, default 1.5),
+  turn boost (on: full sideways for 0.25 s ramps yaw to 2x over 0.35 s), performance overlay, frame rate limit.
+  Native settings go through the clipboard: "utandroid:get|set ..." is taken by the loader (shim.c
+  SDL_Set/GetClipboardText), stored in files/handheld.cfg and the shared state the SDL bridge and app read.

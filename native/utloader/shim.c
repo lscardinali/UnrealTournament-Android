@@ -22,6 +22,8 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <fenv.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -185,7 +187,13 @@ static void g_assert_fail(const char *expr, const char *file, unsigned line, con
 
 static const char *g_gnu_get_libc_version(void) { return "2.35"; }
 static char *g_secure_getenv(const char *n) { return getenv(n); }
-static unsigned long g_getauxval(unsigned long t) { return getauxval(t); }
+static char exe_path[512];
+/* AT_EXECFN is the app process (app_process64): answer with the loaded program, like readlink("/proc/self/exe").
+   Unreal 227's appBaseDir uses it. */
+static unsigned long g_getauxval(unsigned long t) {
+    if (t == 31 /* AT_EXECFN */ && exe_path[0]) return (unsigned long)exe_path;
+    return getauxval(t);
+}
 static int g_register_atfork(void (*p)(void), void (*pa)(void), void (*c)(void), void *dso) { return pthread_atfork(p, pa, c); }
 static int g_sched_cpucount(size_t setsize, const unsigned long *set) {
     int n = 0;
@@ -381,7 +389,6 @@ static int g_iconv_close(iconv_t cd) {
 static int g_bcmp(const void *a, const void *b, size_t n) { return memcmp(a, b, n); }
 
 /* Core derives its base directory from readlink("/proc/self/exe"): answer with the loaded program's path. */
-static char exe_path[512];
 static ssize_t g_readlink(const char *path, char *buf, size_t n) {
     if (path && exe_path[0] && strcmp(path, "/proc/self/exe") == 0) {
         size_t l = strlen(exe_path);
@@ -390,6 +397,24 @@ static ssize_t g_readlink(const char *path, char *buf, size_t n) {
         return (ssize_t)l;
     }
     return readlink(path, buf, n);
+}
+
+/* glibc's FE_DFL_ENV / FE_NOMASK_ENV are the pointers -1 / -2; bionic's FE_DFL_ENV is a real object
+   (Unreal 227's PhysX calls fesetenv(FE_DFL_ENV)). */
+static const fenv_t *g_fe_env(const fenv_t *e) {
+    return ((intptr_t)e == -1 || (intptr_t)e == -2) ? FE_DFL_ENV : e;
+}
+static int g_fesetenv(const fenv_t *e) { return fesetenv(g_fe_env(e)); }
+static int g_feupdateenv(const fenv_t *e) { return feupdateenv(g_fe_env(e)); }
+
+/* realpath("/proc/self/exe") resolves to app_process64 too: same answer as readlink. */
+static char *g_realpath(const char *path, char *resolved) {
+    if (path && exe_path[0] && strcmp(path, "/proc/self/exe") == 0) {
+        if (!resolved) return strdup(exe_path);
+        snprintf(resolved, PATH_MAX, "%s", exe_path);
+        return resolved;
+    }
+    return realpath(path, resolved);
 }
 
 /* ------------------------------------------------------------------------------------------ sysconf */
@@ -1004,6 +1029,96 @@ static const char *abs_path(const char *p, char *buf, size_t n) {
     return buf;
 }
 
+/* Unreal 227's XOpenGLDrv (OpenGLVersion=ES) writes GLSL "#version 310 es" with GL_OES_shader_io_blocks and uses
+   gl_ClipDistance; Adreno's GLES 3.2 has I/O blocks in core 3.20 and clip distances via GL_EXT_clip_cull_distance.
+   Rewrite each shader's header on its way to the driver. */
+typedef unsigned int GLuint_;
+typedef int GLsizei_;
+typedef int GLint_;
+static void (*real_glShaderSource)(GLuint_, GLsizei_, const char *const *, const GLint_ *);
+static void g_glShaderSource(GLuint_ shader, GLsizei_ count, const char *const *strings, const GLint_ *lengths) {
+    size_t total = 0;
+    for (GLsizei_ i = 0; i < count; i++) total += lengths && lengths[i] >= 0 ? (size_t)lengths[i] : strlen(strings[i]);
+    char *src = malloc(total + 256);
+    if (!src) {
+        real_glShaderSource(shader, count, strings, lengths);
+        return;
+    }
+    size_t o = 0;
+    for (GLsizei_ i = 0; i < count; i++) {
+        size_t l = lengths && lengths[i] >= 0 ? (size_t)lengths[i] : strlen(strings[i]);
+        memcpy(src + o, strings[i], l);
+        o += l;
+    }
+    src[o] = 0;
+    char *v = strstr(src, "#version 310 es");
+    if (v) v[11] = '2'; /* 320 es */
+    char *ext = strstr(src, "#extension GL_OES_shader_io_blocks");
+    if (ext) {
+        char *eol = strchr(ext, '\n');
+        memset(ext, ' ', eol ? (size_t)(eol - ext) : strlen(ext));
+        ext[0] = '/', ext[1] = '/';
+    }
+    if (strstr(src, "gl_ClipDistance") && !strstr(src, "GL_EXT_clip_cull_distance")) {
+        char *line = strstr(src, "#version");
+        char *eol = line ? strchr(line, '\n') : NULL;
+        if (eol) {
+            static const char add[] = "#extension GL_EXT_clip_cull_distance : enable\n";
+            size_t at = (size_t)(eol + 1 - src);
+            memmove(src + at + sizeof add - 1, src + at, strlen(src + at) + 1);
+            memcpy(src + at, add, sizeof add - 1);
+        }
+    }
+    const char *one = src;
+    real_glShaderSource(shader, 1, &one, NULL);
+    free(src);
+}
+static void *g_SDL_GL_GetProcAddress(const char *name) {
+    static void *(*real)(const char *);
+    if (!real) real = (void *(*)(const char *))utl_external_lookup("SDL_GL_GetProcAddress");
+    void *f = real(name);
+    if (f && name && strcmp(name, "glShaderSource") == 0) {
+        real_glShaderSource = (void (*)(GLuint_, GLsizei_, const char *const *, const GLint_ *))f;
+        return (void *)g_glShaderSource;
+    }
+    return f;
+}
+
+/* Android SDL allows one window. Unreal 227's XOpenGLDrv creates its own while SDLDrv's is open: when Android
+   refuses a second window, hand back the existing one, and ignore the matching destroy. */
+static void *alias_window;
+static int alias_count;
+static void *g_SDL_CreateWindow(const char *title, int w, int h, uint64_t flags) {
+    static void *(*real)(const char *, int, int, uint64_t);
+    static void **(*get_windows)(int *);
+    static void (*sdl_free)(void *);
+    if (!real) real = (void *(*)(const char *, int, int, uint64_t))utl_external_lookup("SDL_CreateWindow");
+    void *win = real(title, w, h, flags);
+    if (win) return win;
+    if (!get_windows) get_windows = (void **(*)(int *))utl_external_lookup("SDL_GetWindows");
+    if (!sdl_free) sdl_free = (void (*)(void *))utl_external_lookup("SDL_free");
+    int n = 0;
+    void **list = get_windows ? get_windows(&n) : NULL;
+    if (list && n > 0) {
+        win = list[0];
+        alias_window = win;
+        alias_count++;
+        utl_log("SDL_CreateWindow(\"%s\", %dx%d, flags 0x%llx): Android has one window, reusing it", title ? title : "",
+                w, h, (unsigned long long)flags);
+    }
+    if (list && sdl_free) sdl_free(list);
+    return win;
+}
+static void g_SDL_DestroyWindow(void *win) {
+    static void (*real)(void *);
+    if (win && win == alias_window && alias_count > 0) {
+        alias_count--;
+        return;
+    }
+    if (!real) real = (void (*)(void *))utl_external_lookup("SDL_DestroyWindow");
+    real(win);
+}
+
 /* Android SDL allows one window: ut-bin's splash window would block the game's. Skip the splash (refuse its
    image) and swallow the resulting "Splash... init error" message box. */
 static void *g_SDL_LoadBMP(const char *file) {
@@ -1094,6 +1209,45 @@ static bool SDLCALL lifecycle_watch(void *userdata, void *ev) {
     return true;
 }
 
+/* PadUI's Handheld Settings talk to us through the clipboard: a copied "utandroid:<command>" never reaches the real
+   clipboard; its reply is what the next paste returns. */
+__attribute__((weak)) const char *utl_handheld_command(const char *cmd); /* main_android.c (not in utl-spike) */
+static char *handheld_reply;
+
+static int g_SDL_SetClipboardText(const char *text) {
+    static int (*real)(const char *);
+    if (text && utl_handheld_command && strncmp(text, "utandroid:", 10) == 0) {
+        free(handheld_reply);
+        handheld_reply = strdup(utl_handheld_command(text + 10));
+        return 1;
+    }
+    if (!real) real = (int (*)(const char *))utl_external_lookup("SDL_SetClipboardText");
+    return real ? real(text) : 0;
+}
+
+static char *g_SDL_GetClipboardText(void) {
+    static char *(*real)(void);
+    static char *(*sdl_strdup)(const char *);
+    if (handheld_reply) {
+        if (!sdl_strdup) sdl_strdup = (char *(*)(const char *))utl_external_lookup("SDL_strdup");
+        char *r = sdl_strdup ? sdl_strdup(handheld_reply) : NULL; /* the engine frees it with SDL_free */
+        free(handheld_reply);
+        handheld_reply = NULL;
+        if (r) return r;
+    }
+    if (!real) real = (char *(*)(void))utl_external_lookup("SDL_GetClipboardText");
+    return real ? real() : NULL;
+}
+
+/* Package reads: the engine reads through stdio in small pieces, and bionic's FILE buffer is only 1 KB (glibc uses
+   the file system block size). Every refill is a syscall, and on the SD card a round trip through Android's FUSE
+   daemon. A 64 KB buffer for read-only files cuts that ~64x (bionic still seeks within the buffer). */
+static FILE *g_fopen(const char *path, const char *mode) {
+    FILE *f = fopen(path, mode);
+    if (f && mode && mode[0] == 'r' && !strchr(mode, '+')) setvbuf(f, NULL, _IOFBF, 64 * 1024);
+    return f;
+}
+
 static int g_SDL_PollEvent(void *ev) {
     static int (*real)(void *);
     static int watching;
@@ -1150,7 +1304,7 @@ static const shim_entry table[] = {
     S("__wcsftime_l", g_wcsftime_l), S("__strtod_l", g_strtod_l), S("__strtof_l", g_strtof_l),
     S("strtold_l", g_strtold_l), S("__strtold_l", g_strtold_l),
     S("__assert_fail", g_assert_fail), S("gnu_get_libc_version", g_gnu_get_libc_version),
-    S("secure_getenv", g_secure_getenv), S("__secure_getenv", g_secure_getenv), S("__getauxval", g_getauxval),
+    S("secure_getenv", g_secure_getenv), S("__secure_getenv", g_secure_getenv), S("__getauxval", g_getauxval), S("fesetenv", g_fesetenv), S("feupdateenv", g_feupdateenv), S("realpath", g_realpath),
     S("__register_atfork", g_register_atfork), S("__sched_cpucount", g_sched_cpucount),
     S("malloc_trim", g_malloc_trim), S("strerror_r", g_strerror_r), S("__xpg_strerror_r", g_xpg_strerror_r),
     S("basename", g_basename), S("__xpg_basename", basename), S("fcntl64", g_fcntl64),
@@ -1170,8 +1324,9 @@ static const shim_entry table[] = {
     S("pthread_create", g_pthread_create),
     S("dlopen", g_dlopen), S("dlsym", g_dlsym), S("dlclose", g_dlclose), S("dlerror", g_dlerror),
     S("dladdr", g_dladdr), S("dl_iterate_phdr", g_dl_iterate_phdr), S("_dl_find_object", g_dl_find_object),
-    S("__libc_start_main", g_libc_start_main), S("exit", g_exit), S("SDL_SetHint", g_SDL_SetHint), S("SDL_Vulkan_CreateSurface", g_SDL_Vulkan_CreateSurface),
-    S("SDL_PollEvent", g_SDL_PollEvent), S("SDL_GetJoysticks", g_SDL_GetJoysticks), S("alcOpenDevice", g_alcOpenDevice), S("alcCloseDevice", g_alcCloseDevice), S("SDL_LoadBMP", g_SDL_LoadBMP), S("SDL_ShowMessageBox", g_SDL_ShowMessageBox), S("SDL_ShowSimpleMessageBox", g_SDL_ShowSimpleMessageBox), S("TTF_OpenFont", g_TTF_OpenFont),
+    S("__libc_start_main", g_libc_start_main), S("exit", g_exit), S("SDL_SetHint", g_SDL_SetHint), S("SDL_CreateWindow", g_SDL_CreateWindow), S("SDL_GL_GetProcAddress", g_SDL_GL_GetProcAddress), S("SDL_DestroyWindow", g_SDL_DestroyWindow), S("SDL_Vulkan_CreateSurface", g_SDL_Vulkan_CreateSurface),
+    S("SDL_PollEvent", g_SDL_PollEvent), S("SDL_SetClipboardText", g_SDL_SetClipboardText),
+    S("SDL_GetClipboardText", g_SDL_GetClipboardText), S("fopen", g_fopen), S("fopen64", g_fopen), S("SDL_GetJoysticks", g_SDL_GetJoysticks), S("alcOpenDevice", g_alcOpenDevice), S("alcCloseDevice", g_alcCloseDevice), S("SDL_LoadBMP", g_SDL_LoadBMP), S("SDL_ShowMessageBox", g_SDL_ShowMessageBox), S("SDL_ShowSimpleMessageBox", g_SDL_ShowSimpleMessageBox), S("TTF_OpenFont", g_TTF_OpenFont),
     S("iconv_open", g_iconv_open), S("iconv", g_iconv), S("iconv_close", g_iconv_close), S("bcmp", g_bcmp), S("__fprintf_chk", g_fprintf_chk),
     /* returns twice: must be bionic's sigsetjmp itself, not a wrapper (glibc's 312-byte jmp_buf > bionic's 256) */
     S("__sigsetjmp", sigsetjmp), S("__cxa_thread_atexit_impl", g_cxa_thread_atexit_impl), S("readlink", g_readlink),

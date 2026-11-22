@@ -28,13 +28,19 @@ class GyroAim(private val activity: Activity, private val send: (yawMicroRad: In
      *  Aiming window), and a raw angle leaves the axis the most headroom for fast flicks. */
     var sensitivity = DEFAULT_SENSITIVITY
 
+    private var running = false
+
     fun start() {
         val g = gyro ?: return
+        if (running) return
+        running = true
         lastNs = 0L
         sensors?.registerListener(this, g, SAMPLING_PERIOD_US)
     }
 
     fun stop() {
+        if (!running) return
+        running = false
         sensors?.unregisterListener(this)
     }
 

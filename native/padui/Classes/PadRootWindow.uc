@@ -138,15 +138,26 @@ function UWindowWindow FindDir(int DX, int DY)
 	local int i;
 	local float FX, FY, FW, FH, X, Y, Along, Side, Score, BestScore;
 	local UWindowWindow C, Best;
+	local UWindowScrollingDialogClient Pane;
+	local int Pass;
 
 	GetRect(PadFocus, FX, FY);
 	FW = PadFocus.WinWidth;
 	FH = PadFocus.WinHeight;
+	// In a scrolling page, the next control down may be scrolled out of view, further away on screen than the
+	// dialog's own buttons: prefer controls of the same page, then anything.
+	Pane = ScrollPaneOf(PadFocus);
+	for (Pass = 0; Pass < 2 && Best == None; Pass++)
+	{
+	if (Pass == 0 && Pane == None)
+		continue;
 	BestScore = 1000000;
 	for (i = 0; i < NumCtl; i++)
 	{
 		C = Ctl[i];
 		if (C == PadFocus)
+			continue;
+		if (Pass == 0 && !IsUnder(C, Pane))
 			continue;
 		GetRect(C, X, Y);
 		if (DY != 0)
@@ -175,7 +186,16 @@ function UWindowWindow FindDir(int DX, int DY)
 			Best = C;
 		}
 	}
+	}
 	return Best;
+}
+
+function UWindowScrollingDialogClient ScrollPaneOf(UWindowWindow W)
+{
+	for (W = W.ParentWindow; W != None; W = W.ParentWindow)
+		if (UWindowScrollingDialogClient(W) != None)
+			return UWindowScrollingDialogClient(W);
+	return None;
 }
 
 function UWindowWindow FirstControl()
@@ -339,6 +359,53 @@ function LeaveTabs(UWindowWindow D)
 		SetPadFocus(PadFocus);
 }
 
+// Tab strip: the tab next to the selected one on screen. Left/Right stay in its row (wrapping to the list order at
+// the row ends); Up/Down pick the nearest tab in the row above/below. False when there is none (Down: leave the strip).
+function bool TabDir(UWindowWindow D, int DX, int DY)
+{
+	local UWindowPageControl PC;
+	local UWindowTabControlItem T, I, Best;
+	local float CX, IX, Dist, BestDist;
+
+	PC = PageControlOf(D);
+	if (PC == None || PC.SelectedTab == None)
+		return False;
+	T = PC.SelectedTab;
+	CX = T.TabLeft + T.TabWidth / 2;
+	BestDist = 1000000;
+	for (I = UWindowTabControlItem(PC.Items.Next); I != None; I = UWindowTabControlItem(I.Next))
+	{
+		if (I == T || I.TabLeft < 0)
+			continue;
+		IX = I.TabLeft + I.TabWidth / 2;
+		if (DY == 0)
+		{
+			if (Abs(I.TabTop - T.TabTop) > 2 || (IX - CX) * DX <= 0)
+				continue;
+			Dist = Abs(IX - CX);
+		}
+		else
+		{
+			if ((I.TabTop - T.TabTop) * DY <= 2)
+				continue;
+			Dist = Abs(I.TabTop - T.TabTop) * 1000 + Abs(IX - CX);
+		}
+		if (Dist < BestDist)
+		{
+			BestDist = Dist;
+			Best = I;
+		}
+	}
+	if (Best == None)
+	{
+		if (DY != 0)
+			return DY < 0; // Up at the top row: stay; Down at the bottom row: leave the strip
+		return SwitchPage(D, DX > 0);
+	}
+	PC.GotoTab(Best, True);
+	return True;
+}
+
 function bool SwitchPage(UWindowWindow D, bool bNext)
 {
 	local UWindowPageControl PC;
@@ -408,17 +475,22 @@ function bool PadKey(int Key)
 	{
 		switch (Key)
 		{
-		case P.EInputKey.IK_Left:
 		case P.EInputKey.IK_Space:
 			return SwitchPage(D, False);
-		case P.EInputKey.IK_Right:
 		case P.EInputKey.IK_Tab:
 			return SwitchPage(D, True);
+		case P.EInputKey.IK_Left:
+			return TabDir(D, -1, 0);
+		case P.EInputKey.IK_Right:
+			return TabDir(D, 1, 0);
+		case P.EInputKey.IK_Up:
+			return TabDir(D, 0, -1);
 		case P.EInputKey.IK_Down:
+			if (!TabDir(D, 0, 1))
+				LeaveTabs(D);
+			return True;
 		case P.EInputKey.IK_Enter:
 			LeaveTabs(D);
-			return True;
-		case P.EInputKey.IK_Up:
 			return True;
 		}
 		return False;

@@ -49,6 +49,16 @@ class NativeGameActivity : SDLActivity() {
         val bounds = windowManager.maximumWindowMetrics.bounds
         val width = maxOf(bounds.width(), bounds.height())
         val height = minOf(bounds.width(), bounds.height())
+        // Spike: "--es game unreal" runs Unreal 227 from files/unreal (SystemARM64/unreal-bin-arm64, own home).
+        if (intent.getStringExtra("game") == "unreal") {
+            val unreal = File(filesDir, "unreal")
+            android.system.Os.setenv("UTL_SYSTEM_DIR", File(unreal, "SystemARM64").path, true)
+            android.system.Os.setenv("UTL_EXE", "unreal-bin-arm64", true)
+            android.system.Os.setenv("UTL_HOME", File(filesDir, "home-unreal").apply { mkdirs() }.path, true)
+            VsyncWriter.create(GameSession.framesFile(this))
+            super.onCreate(savedInstanceState)
+            return
+        }
         val ini = File(rt.homeDir, ".utpg/System")
         for (marker in listOf("Running.ini", "UnrealTournament.crash")) File(ini, marker).delete()
         File(rt.gameDir, "Save").mkdirs() // UT's SavePath=../Save (the install doesn't ship the folder)
@@ -64,15 +74,22 @@ class NativeGameActivity : SDLActivity() {
         super.onCreate(savedInstanceState)
 
         val full = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        cursor = CursorOverlay(this) { nativeCursorState(it) }.also {
+        // The loader's shared state also carries the "performance overlay" handheld setting (PadUI's Handheld
+        // Settings window, L3+R3): follow it every frame.
+        cursor = CursorOverlay(this) {
+            nativeCursorState(it)
+            val want = it[5] > 0.5f
+            perf?.let { p -> if (p.visible != want) p.toggle() }
+            // Power: the gyro sensor only runs in a match with gyro aiming on (200 Hz otherwise wasted).
+            gyroWanted = it[7] > 0.5f && it[0] < 0.5f
+            if (resumed && gyroWanted) gyro?.start() else gyro?.stop()
+            applyFrameRateLimit(it[6].toInt())
+        }.also {
             addContentView(it, full)
             it.start()
         }
         gyro = GyroAim(this) { yaw, pitch -> nativeGyro(yaw, pitch) }
-        val prefs = getSharedPreferences("utandroid", MODE_PRIVATE)
-        perf = PerfOverlay(this, GameSession.framesFile(this), inProcess = true).also {
-            if (prefs.getBoolean("perfOverlay", true)) it.show()
-        }
+        perf = PerfOverlay(this, GameSession.framesFile(this), inProcess = true) // shown per the handheld setting
     }
 
     // libutloader.so is last: SDL calls its SDL_main.
@@ -139,22 +156,41 @@ class NativeGameActivity : SDLActivity() {
         }
         if (down && event.repeatCount == 0 && l3 && r3 &&
             (event.keyCode == KeyEvent.KEYCODE_BUTTON_THUMBL || event.keyCode == KeyEvent.KEYCODE_BUTTON_THUMBR)) {
-            perf?.let {
-                it.toggle()
-                getSharedPreferences("utandroid", MODE_PRIVATE).edit().putBoolean("perfOverlay", it.visible).apply()
-            }
+            nativeHandheld("set perf=toggle") // the overlay follows on the next frame
         }
         return super.dispatchKeyEvent(event)
     }
 
+    private var resumed = false
+    private var gyroWanted = false
+    private var fpsApplied = -1
+
     override fun onResume() {
         super.onResume()
-        gyro?.start()
+        resumed = true
+        if (gyroWanted) gyro?.start()
     }
 
     override fun onPause() {
+        resumed = false
         gyro?.stop()
         super.onPause()
+    }
+
+    /**
+     * Handheld setting "frame rate": ask for the display mode nearest [fps] (0 = the panel's fastest). The game's
+     * vsync then runs at that rate, so a lower limit saves GPU, CPU and panel power alike.
+     */
+    private fun applyFrameRateLimit(fps: Int) {
+        if (fps == fpsApplied) return
+        fpsApplied = fps
+        val d = display ?: return
+        val cur = d.mode
+        val modes = d.supportedModes.filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
+        val pick = (if (fps <= 0) modes.maxByOrNull { it.refreshRate }
+                    else modes.minByOrNull { kotlin.math.abs(it.refreshRate - fps) }) ?: return
+        window.attributes = window.attributes.also { it.preferredDisplayModeId = pick.modeId }
+        android.util.Log.i("UTAndroid", "frame rate limit $fps -> display mode ${pick.refreshRate} Hz")
     }
 
     override fun onDestroy() {
@@ -166,6 +202,9 @@ class NativeGameActivity : SDLActivity() {
     companion object {
         /** From libutloader: [menu (0/1), cursor x, cursor y, window w, window h] in SDL window coordinates. */
         @JvmStatic external fun nativeCursorState(out: FloatArray)
+
+        /** Handheld settings command (see utl_handheld_command in libutloader), e.g. "set perf=toggle". */
+        @JvmStatic external fun nativeHandheld(cmd: String)
 
         /** Gyro aiming: angle turned since the last call, micro-radians (yaw right +, pitch up +). */
         @JvmStatic external fun nativeGyro(yaw: Int, pitch: Int)

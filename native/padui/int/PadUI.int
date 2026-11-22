@@ -1,2 +1,2 @@
 [Public]
-Object=(Name=PadUI.PadGyroMenuItem,Class=Class,MetaClass=UMenu.UMenuModMenuItem,Description="&Gyro Aiming,Turn the handheld to aim: sensitivity, on/off, invert.")
+Object=(Name=PadUI.PadGyroMenuItem,Class=Class,MetaClass=UMenu.UMenuModMenuItem,Description="&Handheld Settings,Gyro aiming, look stick response, performance overlay.")

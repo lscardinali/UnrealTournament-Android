@@ -70,6 +70,11 @@
 #define LOOK_SCALE_MIN 0.25f
 #define LOOK_SCALE_MAX 2.0f
 #define UTA_AXIS_LOOK_FIRST 2 /* axes 2,3 = right stick (JoyZ turn, JoyR look up) */
+/* Look axes are sent at half range (JoyZ/JoyR Speed doubled in GameConfig.kt) so the turn boost has room above
+   full deflection. */
+#define LOOK_AXIS_RANGE 0.5f
+#define TURN_BOOST_DELAY_S 0.25f /* full yaw held this long before the boost starts */
+#define TURN_BOOST_RAMP_S 0.35f  /* then it ramps to 1 + turn_boost over this long */
 
 /*
  * Gyro axes carry the angle turned during one game frame. UT turns the view by 32 * Speed * axis per frame
@@ -263,10 +268,15 @@ typedef struct {
     volatile Sint32 touch_dx, touch_dy; /* touchpad cursor movement from the app, window pixels */
     volatile Uint32 touch_taps;         /* touchpad taps = left clicks */
     volatile Sint32 gyro_yaw, gyro_pitch; /* gyro angle from the app, micro-radians, drained once per game frame */
+    volatile Sint32 perf_overlay;         /* (app) */
+    volatile float stick_curve;           /* look stick response exponent, 1 = linear */
+    volatile float turn_boost;            /* extra yaw speed after holding full deflection, 0 = off, 1 = 2x */
+    volatile Sint32 gyro_on, fps_limit;   /* (app) */
 } UTANDROID_Shared;
 static UTANDROID_Shared *shared;
 static bool native_pad;
 static float gyro_axis[2]; /* this frame's gyro axis values (main thread) */
+static float turn_boost_factor = 1.0f; /* main thread */
 static SDL_JoystickID virtual_id;
 static SDL_Gamepad *real_pad;
 
@@ -433,6 +443,16 @@ static void UTANDROID_PollRealPad(void)
     SDL_SetAtomicInt(&pad_axes[1], y);
     x = UTANDROID_Shape(SDL_GetGamepadAxis(real_pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f,
                         SDL_GetGamepadAxis(real_pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f, &y);
+    /* Look stick response curve: magnitude^curve keeps full speed at full deflection, finer control near the centre. */
+    if (shared && shared->stick_curve > 1.01f) {
+        const float fx = x / 32767.0f, fy = y / 32767.0f;
+        const float mag = SDL_sqrtf(fx * fx + fy * fy);
+        if (mag > 0.0f) {
+            const float k = SDL_powf(SDL_min(mag, 1.0f), shared->stick_curve) / mag;
+            x = (Sint16)(fx * k * 32767.0f);
+            y = (Sint16)(fy * k * 32767.0f);
+        }
+    }
     SDL_SetAtomicInt(&pad_axes[2], x);
     SDL_SetAtomicInt(&pad_axes[3], y);
 }
@@ -734,6 +754,23 @@ static void SDLCALL UTANDROID_Update(void *userdata)
            swallows them except while a key-binding button waits for its key. */
         SDL_SetJoystickVirtualButton(pad_joystick, i, down);
     }
+    /* Turn boost: holding the look stick fully sideways speeds the turn up after a moment (fast 180s). */
+    {
+        static Uint64 full_since;
+        const float yaw = SDL_fabsf((float)(Sint16)SDL_GetAtomicInt(&pad_axes[UTA_AXIS_LOOK_FIRST]) / 32767.0f);
+        const float boost = shared ? shared->turn_boost : 0.0f;
+        turn_boost_factor = 1.0f;
+        if (yaw > 0.92f && boost > 0.0f && !menu_mode) {
+            float held;
+            if (!full_since) full_since = poll_ns;
+            held = (float)(poll_ns - full_since) / 1e9f - TURN_BOOST_DELAY_S;
+            if (held > 0.0f) {
+                turn_boost_factor = 1.0f + boost * SDL_min(held / TURN_BOOST_RAMP_S, 1.0f);
+            }
+        } else {
+            full_since = 0;
+        }
+    }
     /* Gyro: take the angle accumulated since the last game frame, once per frame (SDLDrv polls twice per frame),
        and hold it on the gyro axes for that frame. Discarded in menus. */
     if (shared) {
@@ -752,7 +789,10 @@ static void SDLCALL UTANDROID_Update(void *userdata)
         if (i >= UTA_AXIS_GYRO_FIRST) {
             v = gyro_axis[i - UTA_AXIS_GYRO_FIRST]; /* already an angle per frame: no look_scale */
         } else if (i >= UTA_AXIS_LOOK_FIRST) {
-            v *= look_scale; /* frame-rate independent look (see REFERENCE_FRAME_S) */
+            v *= look_scale * LOOK_AXIS_RANGE; /* frame-rate independent look (see REFERENCE_FRAME_S) */
+            if (i == UTA_AXIS_LOOK_FIRST) {
+                v *= turn_boost_factor;
+            }
         }
         /* In menus, centre the sticks so the game doesn't turn/move behind the menu. */
         SDL_SetJoystickVirtualAxis(pad_joystick, i, menu_mode ? 0 : (Sint16)SDL_clamp(v, -32767.0f, 32767.0f));

@@ -17,7 +17,7 @@ import android.view.View
  * ([read] = NativeGameActivity.nativeCursorState: menu, x, y, window w, window h).
  */
 class CursorOverlay(context: Context, private val read: (FloatArray) -> Unit) : View(context), Choreographer.FrameCallback {
-    private val state = FloatArray(5)
+    private val state = FloatArray(8)
     private val scale = resources.displayMetrics.density
     private val arrow = Path().apply {
         // A classic pointer, tip at (0,0), about 24 dp tall.

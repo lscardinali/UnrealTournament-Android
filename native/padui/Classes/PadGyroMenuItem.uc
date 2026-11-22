@@ -10,6 +10,6 @@ function Execute()
 
 defaultproperties
 {
-      MenuCaption="&Gyro Aiming"
-      MenuHelp="Turn the handheld to aim: sensitivity, on/off, invert."
+      MenuCaption="&Handheld Settings"
+      MenuHelp="Gyro aiming, look stick response, performance overlay."
 }

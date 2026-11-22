@@ -10,7 +10,7 @@ SYSROOT="$(cd "$NATIVE/runtime/out/root" && pwd -W)"
 mkdir -p "$HERE/out"
 
 "$BIN/clang.exe" --target=aarch64-linux-android33 -O2 -g -Wall -Wno-unused-function -fno-omit-frame-pointer \
-    -o "$HERE/out/utl-spike" "$HERE/spike.c" "$HERE/loader.c" "$HERE/tls.c" "$HERE/shim.c" -ldl -llog
+    -o "$HERE/out/utl-spike" "$HERE/spike.c" "$HERE/loader.c" "$HERE/tls.c" "$HERE/shim.c" -ldl -llog -lm
 
 "$BIN/clang++.exe" --target=aarch64-linux-gnu --sysroot="$SYSROOT" -shared -fPIC -O2 -fuse-ld=lld \
     --rtlib=libgcc --unwindlib=libgcc -stdlib=libstdc++ -Wl,-soname,libthrowtest.so \
@@ -22,5 +22,5 @@ ls -la "$HERE/out"
 # Android library for the app (native port): SDLActivity -> SDL_main -> UT's ut-bin-arm64 on a utl thread
 "$BIN/clang.exe" --target=aarch64-linux-android28 -shared -fPIC -O2 -g -Wall -Wno-unused-function \
     -fno-omit-frame-pointer -Wl,-soname,libutloader.so \
-    -o "$HERE/out/libutloader.so" "$HERE/main_android.c" "$HERE/loader.c" "$HERE/tls.c" "$HERE/shim.c" -ldl -llog
+    -o "$HERE/out/libutloader.so" "$HERE/main_android.c" "$HERE/loader.c" "$HERE/tls.c" "$HERE/shim.c" -ldl -llog -lm
 ls -la "$HERE/out/libutloader.so"

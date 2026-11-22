@@ -8,7 +8,7 @@ function Created()
 	bStatusBar = False;
 	bSizable = False;
 	Super.Created();
-	SetSize(220, 112);
+	SetSize(250, 210);
 	WinLeft = Root.WinWidth / 2 - WinWidth / 2;
 	WinTop = Root.WinHeight / 2 - WinHeight / 2;
 }
@@ -16,5 +16,5 @@ function Created()
 defaultproperties
 {
       ClientClass=Class'PadUI.PadGyroClient'
-      WindowTitle="Gyro Aiming"
+      WindowTitle="Handheld Settings"
 }
