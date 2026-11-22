@@ -24,7 +24,8 @@ class GyroAim(private val activity: Activity, private val send: (yawMicroRad: In
     private var restYaw = 0.0
     private var restPitch = 0.0
 
-    /** Multiplier on the real-world angle (1 = the view turns as far as the device does). */
+    /** Multiplier on the angle sent. Keep 1: the game's JoyU/JoyV binding Speed sets the sensitivity (PadUI's Gyro
+     *  Aiming window), and a raw angle leaves the axis the most headroom for fast flicks. */
     var sensitivity = DEFAULT_SENSITIVITY
 
     fun start() {
@@ -73,7 +74,7 @@ class GyroAim(private val activity: Activity, private val send: (yawMicroRad: In
     }
 
     companion object {
-        const val DEFAULT_SENSITIVITY = 16.0
+        const val DEFAULT_SENSITIVITY = 1.0
         private const val SAMPLING_PERIOD_US = 5000          // 200 Hz (higher needs HIGH_SAMPLING_RATE_SENSORS)
         private const val TIGHTEN_RAD_S = 0.75 * Math.PI / 180 // 0.75 deg/s
     }

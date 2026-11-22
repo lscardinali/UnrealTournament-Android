@@ -19,4 +19,5 @@ cd "$UT/System"
 ./UCC.exe make -ini=PadUIMake.ini -silent 2>&1 | grep -v -E "^\s*$" | tail -30
 cp PadUI.u "$HERE/out/"
 rm -rf "$UT/PadUI" PadUIMake.ini PadUI.u
-ls -l "$HERE/out/PadUI.u"
+cp "$HERE/int/PadUI.int" "$HERE/out/"
+ls -l "$HERE/out/PadUI.u" "$HERE/out/PadUI.int"

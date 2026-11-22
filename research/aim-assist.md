@@ -281,3 +281,9 @@ gyro and stick translation.
 - `GameConfig.kt`: `JoyU=Axis aTurn Speed=1000`, `JoyV=Axis aLookUp Speed=1000` (DEFAULTS_VERSION 5).
 - Verified: sensor active (dumpsys sensorservice), "Joystick has 6 axes", bindings in User.ini. Direction, scale and
   feel need a hands-on test (UT's FOVScale also multiplies joystick turn, so "1x" is ~1.18x at the widescreen FOV).
+- Tuned (user): 16x the nominal scale felt right. That base moved into the bindings: the app now sends the real
+  angle (GyroAim sensitivity 1.0, most axis headroom) and JoyU/JoyV default to Speed=16000 (DEFAULTS_VERSION 6).
+- Settings: Mod > "Gyro Aiming" (PadUI: PadGyroMenuItem / PadGyroWindow / PadGyroClient, listed via
+  SystemLocalized/int/PadUI.int). On/off, Sensitivity 25-300% (100% = the tuned base), Invert up/down. Changes apply
+  live with `SET Input JoyU/JoyV Axis ... Speed=16000*sens` (0 = off, negative pitch = inverted), saved in User.ini and
+  [PadUI.PadGyroClient] in UnrealTournament.ini. Verified on the native build with injected pad (research/gy5..gy6.png).

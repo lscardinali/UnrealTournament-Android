@@ -52,7 +52,7 @@ object GameConfig {
     )
 
     /** Bump to re-apply [userDefaults] and [systemDefaults] on existing installs (overwrites the user's changes). */
-    const val DEFAULTS_VERSION = 5 // 2: AutoAim floor; 3: view bob back; 4: GUI scale 3.0; 5: gyro axes
+    const val DEFAULTS_VERSION = 6 // 2: AutoAim floor; 3: view bob back; 4: GUI scale 3.0; 5: gyro axes; 6: gyro base speed
 
     val systemDefaults: Map<String, Map<String, String>> = mapOf(
         // UWindow menus at 3x, the slider's maximum (640x360 virtual desktop on 1080p). Auto scaling reads ~96 DPI on
@@ -86,10 +86,11 @@ object GameConfig {
             "JoyY" to "Axis aBaseY Speed=-1500",
             "JoyZ" to "Axis aTurn Speed=800",
             "JoyR" to "Axis aLookUp Speed=-550",
-            // Gyro aiming (GyroAim.kt -> SDL_utandroid.c axes 4/5): the axes carry an angle per frame, so Speed must
-            // match GYRO_AXIS_SPEED there.
-            "JoyU" to "Axis aTurn Speed=1000",
-            "JoyV" to "Axis aLookUp Speed=1000",
+            // Gyro aiming (GyroAim.kt -> SDL_utandroid.c axes 4/5): the axes carry the angle turned per frame;
+            // Speed 1000 would be "1x" (GYRO_AXIS_SPEED there), 16000 is the tuned 100% (PadUI's Gyro Aiming window
+            // rewrites these as 16000 x sensitivity; keep its BaseSpeed in step).
+            "JoyU" to "Axis aTurn Speed=16000",
+            "JoyV" to "Axis aLookUp Speed=16000",
             "JoyPovUp" to "", "JoyPovDown" to "", "JoyPovLeft" to "", "JoyPovRight" to "",
         ),
         "Engine.PlayerPawn" to mapOf(
