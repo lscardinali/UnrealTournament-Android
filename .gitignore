@@ -1,0 +1,43 @@
+# Game data and OldUnreal binaries (not ours to redistribute; see research/PLAN.md for where they come from)
+/UnrealTournament/
+/linux-arm64/
+/OldUnreal-*.tar.bz2
+
+# Upstream source clones (revisions in native/SOURCES.md) and build outputs
+/native/sdl/src/
+/native/sdl/ttf-src/
+/native/sdl/build*/
+/native/sdl/out*/
+/native/openal/src/
+/native/openal/build*/
+/native/openal/out*/
+/native/runtime/out/
+/native/utloader/out/
+/native/build/
+/native/padui/out/
+# UnrealScript exported from the game's packages (Epic's code, reference only)
+/native/padui/src/
+/native/padui/srcb/
+/native/padui/export/
+/native/padui/export*/
+
+# Android
+/Android/third_party/termux-x11/
+/Android/build/
+/Android/app/build/
+/Android/.gradle/
+/Android/.kotlin/
+/Android/.idea/
+/Android/local.properties
+/Android/app/src/debug/jniLibs/
+*.apk
+*.aab
+
+# Device screenshots from testing
+/research/*.png
+
+# Python / editors
+__pycache__/
+*.pyc
+.vscode/
+.idea/

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Gamepad rumble from the game (InputBridge). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Termux:X11 (:lorie) asks for it to turn its keyboard service on by itself; that service is removed below. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:node="remove" />
+
+    <!-- UTApplication is a LorieApp: Termux:X11's receivers and display activity need it (x11/UTApplication.kt). -->
+    <application
+        android:name=".x11.UTApplication"
+        android:allowNativeHeapPointerTagging="false"
+        tools:replace="android:name,android:allowBackup"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.UnrealTournament">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.UnrealTournament"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Termux:X11's display (x11/XDisplay.kt): the game screen, not a second launcher entry. -->
+        <activity
+            android:name="com.termux.x11.MainActivity"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:screenOrientation="sensorLandscape"
+            tools:replace="android:label,android:icon,android:roundIcon">
+            <intent-filter tools:node="removeAll" />
+        </activity>
+
+        <!-- The game: Termux:X11's display with the gamepad routed to the game's SDL (GameActivity.kt). -->
+        <activity
+            android:name=".GameActivity"
+            android:label="@string/app_name"
+            android:theme="@style/LorieAppTheme"
+            android:launchMode="singleInstance"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:exported="false" />
+
+        <!-- Native port (M2): Android SDL3 hosting UT's own binaries in-process (NativeGameActivity.kt). -->
+        <activity
+            android:name=".NativeGameActivity"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:launchMode="singleInstance"
+            android:alwaysRetainTaskState="true"
+            android:screenOrientation="sensorLandscape"
+            android:preferMinimalPostProcessing="true"
+            android:configChanges="layoutDirection|locale|fontScale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false" />
+
+        <service android:name="com.termux.x11.utils.KeyInterceptor" tools:node="remove" />
+    </application>
+
+</manifest>

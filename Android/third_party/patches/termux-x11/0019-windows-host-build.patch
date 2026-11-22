@@ -1,0 +1,112 @@
+diff --git a/lorie/src/main/cpp/CMakeLists.txt b/lorie/src/main/cpp/CMakeLists.txt
+index 314d6a0..c098034 100644
+--- a/lorie/src/main/cpp/CMakeLists.txt
++++ b/lorie/src/main/cpp/CMakeLists.txt
+@@ -18,12 +18,45 @@ include(CheckSymbolExists)
+ include(CheckFunctionExists)
+ include(CheckTypeSize)
+ 
++# UTAndroid: a Windows host has no bison, patch or gcc on Android Studio's PATH. Look in Git for Windows and MSYS2
++# (pacman -S bison); LORIE_HOST_TOOLS (environment) may name another directory first.
++if(CMAKE_HOST_WIN32)
++    list(APPEND CMAKE_PROGRAM_PATH "$ENV{LORIE_HOST_TOOLS}" "C:/msys64/usr/bin" "C:/Program Files/Git/usr/bin")
++endif()
+ find_package(Python3 REQUIRED)
+ find_package(BISON REQUIRED)
+ 
++if(CMAKE_HOST_WIN32)
++    # Not "bash -c": on Windows that can be WSL's bash.exe, and a failure here is silent.
++    find_program(LORIE_PATCH patch REQUIRED)
++    function(target_apply_patch patch_target d p)
++        execute_process(COMMAND "${LORIE_PATCH}" -p1 -d "${d}" -i "${p}" -R --dry-run
++                        RESULT_VARIABLE already OUTPUT_QUIET ERROR_QUIET)
++        if(NOT already EQUAL 0)
++            execute_process(COMMAND "${LORIE_PATCH}" -p1 -N -d "${d}" -i "${p}" -r - RESULT_VARIABLE failed)
++            if(NOT failed EQUAL 0)
++                message(FATAL_ERROR "Could not apply ${p} to ${d}")
++            endif()
++        endif()
++    endfunction()
++else()
+ function(target_apply_patch patch_target d p)
+     execute_process(COMMAND "bash" "-c" "patch -p1 -d ${d} -i ${p} -R --dry-run > /dev/null 2>&1 || patch -p1 -N -d ${d} -i ${p} -r -")
+ endfunction()
++endif()
++
++# UTAndroid: creating symlinks needs Developer Mode or admin on Windows; copy instead (after any patching).
++function(lorie_link_or_copy src dst)
++    if(CMAKE_HOST_WIN32)
++        if(IS_DIRECTORY "${src}")
++            file(COPY "${src}/" DESTINATION "${dst}")
++        else()
++            configure_file("${src}" "${dst}" COPYONLY)
++        endif()
++    else()
++        execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink "${src}" "${dst}")
++    endif()
++endfunction()
+ 
+ set(test_compile_options
+         "-Wall"
+diff --git a/lorie/src/main/cpp/recipes/xkbcomp.cmake b/lorie/src/main/cpp/recipes/xkbcomp.cmake
+index c4aff8e..3a32792 100644
+--- a/lorie/src/main/cpp/recipes/xkbcomp.cmake
++++ b/lorie/src/main/cpp/recipes/xkbcomp.cmake
+@@ -1,10 +1,16 @@
+ # Normally xkbcomp is build as executable, but in our case it is better to embed it.
+ 
+ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/X11")
++# UTAndroid: makekeys runs on the build host, so it needs the host's C compiler, not /usr/bin/gcc on Windows.
++if(CMAKE_HOST_WIN32)
++    find_program(LORIE_HOST_CC NAMES gcc cc clang REQUIRED)
++else()
++    set(LORIE_HOST_CC "/usr/bin/gcc")
++endif()
+ 
+ add_custom_command(
+         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ks_tables.h"
+-        COMMAND "/usr/bin/gcc" "-o" "${CMAKE_CURRENT_BINARY_DIR}/makekeys" "${CMAKE_CURRENT_SOURCE_DIR}/libx11/src/util/makekeys.c" "&&"
++        COMMAND "${LORIE_HOST_CC}" "-o" "${CMAKE_CURRENT_BINARY_DIR}/makekeys" "${CMAKE_CURRENT_SOURCE_DIR}/libx11/src/util/makekeys.c" "&&"
+             "${CMAKE_CURRENT_BINARY_DIR}/makekeys" "keysymdef.h" "XF86keysym.h" "Sunkeysym.h" "DECkeysym.h" "HPkeysym.h" ">" "${CMAKE_CURRENT_BINARY_DIR}/ks_tables.h"
+         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/xorgproto/include/X11"
+         COMMENT "Generating source code (ks_tables.h)"
+diff --git a/lorie/src/main/cpp/recipes/xorgproto.cmake b/lorie/src/main/cpp/recipes/xorgproto.cmake
+index 8325f05..1d4c07d 100644
+--- a/lorie/src/main/cpp/recipes/xorgproto.cmake
++++ b/lorie/src/main/cpp/recipes/xorgproto.cmake
+@@ -1,9 +1,9 @@
+ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/X11")
+ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/X11/XlibConf.h" CONTENT "\n#pragma once\n#define XTHREADS 1\n#define XUSE_MTSAFE_API 1")
+-execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/libxtrans" "${CMAKE_CURRENT_BINARY_DIR}/X11/Xtrans")
+ 
+ add_library(xorgproto INTERFACE)
+ target_include_directories(xorgproto INTERFACE "xorgproto/include")
+ set(USE_FDS_BITS 1)
+ configure_file("xorgproto/include/X11/Xpoll.h.in" "${CMAKE_CURRENT_BINARY_DIR}/X11/Xpoll.h" @ONLY)
+-target_apply_patch(Xtrans "${CMAKE_CURRENT_SOURCE_DIR}/libxtrans" "${CMAKE_CURRENT_SOURCE_DIR}/patches/Xtrans.patch")
+\ No newline at end of file
++target_apply_patch(Xtrans "${CMAKE_CURRENT_SOURCE_DIR}/libxtrans" "${CMAKE_CURRENT_SOURCE_DIR}/patches/Xtrans.patch")
++lorie_link_or_copy("${CMAKE_CURRENT_SOURCE_DIR}/libxtrans" "${CMAKE_CURRENT_BINARY_DIR}/X11/Xtrans")
+\ No newline at end of file
+diff --git a/lorie/src/main/cpp/recipes/xshmfence.cmake b/lorie/src/main/cpp/recipes/xshmfence.cmake
+index 1ff4e9c..ca4d892 100644
+--- a/lorie/src/main/cpp/recipes/xshmfence.cmake
++++ b/lorie/src/main/cpp/recipes/xshmfence.cmake
+@@ -1,5 +1,5 @@
+ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/values.h" CONTENT "#include <limits.h>")
+-execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/libxshmfence/src/xshmfence.h" "${CMAKE_CURRENT_BINARY_DIR}/X11/xshmfence.h")
++lorie_link_or_copy("${CMAKE_CURRENT_SOURCE_DIR}/libxshmfence/src/xshmfence.h" "${CMAKE_CURRENT_BINARY_DIR}/X11/xshmfence.h")
+ add_library(xshmfence_pthread STATIC "libxshmfence/src/xshmfence_alloc.c" "libxshmfence/src/xshmfence_pthread.c")
+ target_include_directories(xshmfence_pthread PRIVATE "xorgproto/include" "${CMAKE_CURRENT_BINARY_DIR}")
+ target_compile_options(xshmfence_pthread PRIVATE "-DSHMDIR=\"/\"" "-DHAVE_PTHREAD" "-DMAXINT=INT_MAX" "-Dxshmfence_trigger=xshmfence_pthread_trigger" "-Dxshmfence_await=xshmfence_pthread_await" "-Dxshmfence_query=xshmfence_pthread_query" "-Dxshmfence_reset=xshmfence_pthread_reset" "-Dxshmfence_alloc_shm=xshmfence_pthread_alloc_shm" "-Dxshmfence_map_shm=xshmfence_pthread_map_shm" "-Dxshmfence_unmap_shm=xshmfence_pthread_unmap_shm")
+diff --git a/lorie/version.gradle b/lorie/version.gradle
+index e5c7ea4..2bfaa36 100644
+--- a/lorie/version.gradle
++++ b/lorie/version.gradle
+@@ -8,4 +8,5 @@ ext.termuxX11VersionName = {
+ // lorie-app, or a host app integrating it) should read this instead of letting AGP pick its
+ // own default, otherwise :lorie's CMake config differs between them and its native code gets
+ // compiled twice.
+-ext.termuxX11NdkVersion = "29.0.14206865"
++// UTAndroid: overridable (gradle property termuxX11NdkVersion) so a host with another NDK installed can build.
++ext.termuxX11NdkVersion = project.findProperty("termuxX11NdkVersion") ?: "29.0.14206865"
