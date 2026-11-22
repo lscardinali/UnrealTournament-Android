@@ -39,7 +39,15 @@ static struct {
     volatile uint32_t inject_pressed; /* presses not yet taken by the SDL bridge (a tap shorter than a poll) */
     volatile int32_t touch_dx, touch_dy; /* touchpad cursor: movement not yet applied, in window pixels */
     volatile uint32_t touch_taps;        /* touchpad taps (left clicks) not yet applied */
+    volatile int32_t gyro_yaw, gyro_pitch; /* gyro angle turned and not yet applied, micro-radians */
 } shared_state;
+
+/* Gyro aiming (GyroAim.kt): angle turned since the last call, micro-radians (yaw right +, pitch up +). */
+JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_nativeGyro(JNIEnv *env, jclass c,
+                                                                                           jint yaw, jint pitch) {
+    if (yaw) __atomic_add_fetch(&shared_state.gyro_yaw, yaw, __ATOMIC_SEQ_CST);
+    if (pitch) __atomic_add_fetch(&shared_state.gyro_pitch, pitch, __ATOMIC_SEQ_CST);
+}
 
 /* The touchscreen as a touchpad for the menu cursor (NativeGameActivity): relative moves and tap clicks. */
 JNIEXPORT void JNICALL Java_com_lscardinali_unrealtournament_NativeGameActivity_nativeTouch(JNIEnv *env, jclass c,

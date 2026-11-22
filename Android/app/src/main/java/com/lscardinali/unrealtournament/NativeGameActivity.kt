@@ -27,6 +27,7 @@ class NativeGameActivity : SDLActivity() {
     private lateinit var rt: GlibcProgram
     private var perf: PerfOverlay? = null
     private var cursor: CursorOverlay? = null
+    private var gyro: GyroAim? = null
     private var l3 = false
     private var r3 = false
 
@@ -67,6 +68,7 @@ class NativeGameActivity : SDLActivity() {
             addContentView(it, full)
             it.start()
         }
+        gyro = GyroAim(this) { yaw, pitch -> nativeGyro(yaw, pitch) }
         val prefs = getSharedPreferences("utandroid", MODE_PRIVATE)
         perf = PerfOverlay(this, GameSession.framesFile(this), inProcess = true).also {
             if (prefs.getBoolean("perfOverlay", true)) it.show()
@@ -145,6 +147,16 @@ class NativeGameActivity : SDLActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    override fun onResume() {
+        super.onResume()
+        gyro?.start()
+    }
+
+    override fun onPause() {
+        gyro?.stop()
+        super.onPause()
+    }
+
     override fun onDestroy() {
         cursor?.stop()
         perf?.release()
@@ -154,6 +166,9 @@ class NativeGameActivity : SDLActivity() {
     companion object {
         /** From libutloader: [menu (0/1), cursor x, cursor y, window w, window h] in SDL window coordinates. */
         @JvmStatic external fun nativeCursorState(out: FloatArray)
+
+        /** Gyro aiming: angle turned since the last call, micro-radians (yaw right +, pitch up +). */
+        @JvmStatic external fun nativeGyro(yaw: Int, pitch: Int)
 
         /** Touchpad cursor: move by (dx, dy) window pixels, then click [taps] times. */
         @JvmStatic external fun nativeTouch(dx: Int, dy: Int, taps: Int)

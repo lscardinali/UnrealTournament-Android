@@ -52,7 +52,7 @@ object GameConfig {
     )
 
     /** Bump to re-apply [userDefaults] and [systemDefaults] on existing installs (overwrites the user's changes). */
-    const val DEFAULTS_VERSION = 4 // 2: AutoAim floor; 3: default view bob back; 4: GUI scale 3.0 (max)
+    const val DEFAULTS_VERSION = 5 // 2: AutoAim floor; 3: view bob back; 4: GUI scale 3.0; 5: gyro axes
 
     val systemDefaults: Map<String, Map<String, String>> = mapOf(
         // UWindow menus at 3x, the slider's maximum (640x360 virtual desktop on 1080p). Auto scaling reads ~96 DPI on
@@ -86,8 +86,10 @@ object GameConfig {
             "JoyY" to "Axis aBaseY Speed=-1500",
             "JoyZ" to "Axis aTurn Speed=800",
             "JoyR" to "Axis aLookUp Speed=-550",
-            "JoyU" to "",
-            "JoyV" to "",
+            // Gyro aiming (GyroAim.kt -> SDL_utandroid.c axes 4/5): the axes carry an angle per frame, so Speed must
+            // match GYRO_AXIS_SPEED there.
+            "JoyU" to "Axis aTurn Speed=1000",
+            "JoyV" to "Axis aLookUp Speed=1000",
             "JoyPovUp" to "", "JoyPovDown" to "", "JoyPovLeft" to "", "JoyPovRight" to "",
         ),
         "Engine.PlayerPawn" to mapOf(

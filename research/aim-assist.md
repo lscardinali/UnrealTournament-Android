@@ -268,3 +268,16 @@ gyro and stick translation.
 - [SDL3 SDL_sensor.h](https://github.com/libsdl-org/SDL/blob/db6b6bd75ef5fb1335d192cb4edc11719967f52e/include/SDL3/SDL_sensor.h), [SDL3 CategorySensor](https://wiki.libsdl.org/SDL3/CategorySensor/raw)
 - [foxMod (UT3) on UnrealArchive](https://unrealarchive.org/unreal-tournament-3/gametypes/F/foxmod/index.html) — gamepad-only subtle auto-aim, UT3
 - [OldUnreal 469b patch notes on UnrealArchive](https://unrealarchive.org/patches-updates/unreal-tournament/patches/patch-469b/index.html) — ACE compatibility notes
+
+## Gyro aiming: implemented (2026-11-22, native build)
+
+- `GyroAim.kt`: `TYPE_GYROSCOPE` (qmi8658, non-wakeup) at 200 Hz while the activity is resumed. Device axes are
+  remapped to screen axes by display rotation; yaw = -rate about the screen's vertical axis (turn right +),
+  pitch = +rate about its horizontal axis (top edge towards you = look up). Rates under 0.75 deg/s fade out
+  quadratically (tightening). Sensitivity 1.5x real-world. The angle (micro-radians) goes over JNI `nativeGyro` into
+  `shared_state.gyro_yaw/pitch`.
+- `SDL_utandroid.c`: `UTA_NAXES` 6; axes 4/5 take the accumulated angle once per game frame (frame counter change),
+  converted for `Speed=1000` (full axis = 16000 units, ~88 deg/frame), no `look_scale`; zero in menus.
+- `GameConfig.kt`: `JoyU=Axis aTurn Speed=1000`, `JoyV=Axis aLookUp Speed=1000` (DEFAULTS_VERSION 5).
+- Verified: sensor active (dumpsys sensorservice), "Joystick has 6 axes", bindings in User.ini. Direction, scale and
+  feel need a hands-on test (UT's FOVScale also multiplies joystick turn, so "1x" is ~1.18x at the widescreen FOV).

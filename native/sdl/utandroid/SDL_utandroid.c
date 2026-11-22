@@ -54,7 +54,8 @@
 #define RECONNECT_MS 1000
 
 #define UTA_NBUTTONS 16
-#define UTA_NAXES 4
+#define UTA_NAXES 6 /* 0,1 left stick, 2,3 right stick, 4,5 gyro (JoyU turn, JoyV look up) */
+#define UTA_AXIS_GYRO_FIRST 4
 #define UTA_BUTTON_A 0
 #define UTA_BUTTON_B 1
 #define UTA_BUTTON_X 2
@@ -69,6 +70,15 @@
 #define LOOK_SCALE_MIN 0.25f
 #define LOOK_SCALE_MAX 2.0f
 #define UTA_AXIS_LOOK_FIRST 2 /* axes 2,3 = right stick (JoyZ turn, JoyR look up) */
+
+/*
+ * Gyro axes carry the angle turned during one game frame. UT turns the view by 32 * Speed * axis per frame
+ * (axis -0.5..+0.5 from SDLDrv, 65536 units per turn), so with JoyU/JoyV bound at Speed=GYRO_AXIS_SPEED a full axis
+ * is 16 * GYRO_AXIS_SPEED units (~88 degrees) per frame. Must match GameConfig.kt.
+ */
+#define GYRO_AXIS_SPEED 1000.0f
+#define GYRO_UNITS_PER_URAD (65536.0f / (2.0f * SDL_PI_F) / 1e6f)
+#define GYRO_AXIS_PER_URAD (GYRO_UNITS_PER_URAD / (16.0f * GYRO_AXIS_SPEED) * 32767.0f)
 
 #define CURSOR_SPEED 1400.0f /* pixels per second at full deflection, for a 1080-line window */
 #define CURSOR_DEADZONE 0.15f
@@ -252,9 +262,11 @@ typedef struct {
     volatile Uint32 inject_pressed;
     volatile Sint32 touch_dx, touch_dy; /* touchpad cursor movement from the app, window pixels */
     volatile Uint32 touch_taps;         /* touchpad taps = left clicks */
+    volatile Sint32 gyro_yaw, gyro_pitch; /* gyro angle from the app, micro-radians, drained once per game frame */
 } UTANDROID_Shared;
 static UTANDROID_Shared *shared;
 static bool native_pad;
+static float gyro_axis[2]; /* this frame's gyro axis values (main thread) */
 static SDL_JoystickID virtual_id;
 static SDL_Gamepad *real_pad;
 
@@ -722,9 +734,24 @@ static void SDLCALL UTANDROID_Update(void *userdata)
            swallows them except while a key-binding button waits for its key. */
         SDL_SetJoystickVirtualButton(pad_joystick, i, down);
     }
+    /* Gyro: take the angle accumulated since the last game frame, once per frame (SDLDrv polls twice per frame),
+       and hold it on the gyro axes for that frame. Discarded in menus. */
+    if (shared) {
+        static Uint32 gyro_frame;
+        const Uint32 f = shared->frames;
+        if (f != gyro_frame) {
+            const int yaw = __atomic_exchange_n(&shared->gyro_yaw, 0, __ATOMIC_SEQ_CST);
+            const int pitch = __atomic_exchange_n(&shared->gyro_pitch, 0, __ATOMIC_SEQ_CST);
+            gyro_frame = f;
+            gyro_axis[0] = menu_mode ? 0.0f : (float)yaw * GYRO_AXIS_PER_URAD;
+            gyro_axis[1] = menu_mode ? 0.0f : (float)pitch * GYRO_AXIS_PER_URAD;
+        }
+    }
     for (i = 0; i < UTA_NAXES; i++) {
         float v = (float)(Sint16)SDL_GetAtomicInt(&pad_axes[i]);
-        if (i >= UTA_AXIS_LOOK_FIRST) {
+        if (i >= UTA_AXIS_GYRO_FIRST) {
+            v = gyro_axis[i - UTA_AXIS_GYRO_FIRST]; /* already an angle per frame: no look_scale */
+        } else if (i >= UTA_AXIS_LOOK_FIRST) {
             v *= look_scale; /* frame-rate independent look (see REFERENCE_FRAME_S) */
         }
         /* In menus, centre the sticks so the game doesn't turn/move behind the menu. */
