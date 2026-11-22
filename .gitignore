@@ -57,3 +57,5 @@ __pycache__/
 
 # Source icon files dropped in the root
 /*.ico
+
+spike/
