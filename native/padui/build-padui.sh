@@ -20,4 +20,6 @@ cd "$UT/System"
 cp PadUI.u "$HERE/out/"
 rm -rf "$UT/PadUI" PadUIMake.ini PadUI.u
 cp "$HERE/int/PadUI.int" "$HERE/out/"
+# The app installs PadUI from its assets (setup/AppAssets.kt).
+cp "$HERE/out/PadUI.u" "$HERE/out/PadUI.int" "$HERE/../../Android/app/src/main/assets/padui/"
 ls -l "$HERE/out/PadUI.u" "$HERE/out/PadUI.int"

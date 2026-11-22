@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lscardinali.unrealtournament.runtime.GlibcProgram
+import com.lscardinali.unrealtournament.setup.AppAssets
+import com.lscardinali.unrealtournament.setup.GameInstall
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -46,7 +48,14 @@ class MainActivity : ComponentActivity() {
         }
 
         val bin = intent.getStringExtra("bin")
+        // No game yet (or "--ez setup true"): the setup screen downloads and installs it.
+        if (bin == null && (intent.getBooleanExtra("setup", false) || !GameInstall.isInstalled(this))) {
+            startActivity(android.content.Intent(this, SetupActivity::class.java))
+            finish()
+            return
+        }
         if (bin == null) {
+            AppAssets.sync(this) // libgcc/libstdc++ and PadUI from this APK
             // Normal launch: straight into the native (in-process) build. Extra "x11": the X server build
             // (glibc process + Termux:X11), kept as a fallback.
             val target = if (intent.getBooleanExtra("x11", false)) GameActivity::class.java else NativeGameActivity::class.java

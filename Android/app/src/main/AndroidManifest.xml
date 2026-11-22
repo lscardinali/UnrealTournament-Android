@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Setup downloads the game; the game itself plays online. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Gamepad rumble from the game (InputBridge). -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -33,6 +36,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- First-run setup: downloads and installs the game (SetupActivity.kt). -->
+        <activity
+            android:name=".SetupActivity"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode"
+            android:exported="false" />
 
         <!-- Termux:X11's display (x11/XDisplay.kt): the game screen, not a second launcher entry. -->
         <activity

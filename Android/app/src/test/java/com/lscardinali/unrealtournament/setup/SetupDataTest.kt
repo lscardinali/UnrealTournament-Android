@@ -1,0 +1,78 @@
+package com.lscardinali.unrealtournament.setup
+
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+import java.io.File
+
+/**
+ * Checks the setup's readers against real data on the dev PC (skipped when it isn't there):
+ *   downloads/UT_GOTY_CD1.iso (OldUnreal's GOTY image) and UnrealTournament/Maps (a retail install, maps already
+ *   decompressed by the original installer). Tests run from Android/app.
+ */
+class SetupDataTest {
+    private val root = File("../..").canonicalFile
+    private val iso = File(root, "downloads/UT_GOTY_CD1.iso")
+    private val retailMaps = File(root, "UnrealTournament/Maps")
+
+    @Test
+    fun isoListsTheGame() {
+        assumeTrue(iso.exists())
+        IsoReader(iso).use { r ->
+            val paths = r.entries().map { it.path }.toSet()
+            assertTrue("System/Engine.u" in paths)
+            assertTrue(paths.any { it.startsWith("Maps/") && it.endsWith(".unr.uz") })
+            assertTrue("Textures/LadderFonts.utx" in paths)
+        }
+    }
+
+    @Test
+    fun fullInstallWithSplitDataFolder() {
+        val bp4 = File(root, "downloads/utbonuspack4-zip.7z")
+        val patch = File(root, "OldUnreal-UTPatch469f-Linux-arm64.tar.bz2")
+        assumeTrue(iso.exists() && bp4.exists() && patch.exists())
+        val tmp = File(System.getProperty("java.io.tmpdir"), "ut-setup-test").apply { deleteRecursively() }
+        val sys = File(tmp, "internal")
+        val data = File(tmp, "sdcard")
+        val inst = GameInstaller(sys, data, { false }) { _, _ -> }
+        inst.extractIso(iso)
+        inst.extractBonusPack(bp4)
+        inst.extractPatch(patch)
+        inst.finish()
+        for (rel in listOf("System/ut-bin-arm64", "System/Engine.u", "System/libSDL3.so.0", "System/Default.ini",
+                           "SystemLocalized/int/Engine.int", "Help/Splash2.bmp")) {
+            assertTrue(rel, File(sys, rel).isFile)
+        }
+        for (rel in listOf("Maps/DM-Deck16][.unr", "Maps/CTF-Beatitude.unr", "Maps/DOM-Cybrosis][.unr",
+                           "Textures/SGTech1.utx", "Sounds/Announcer.uax", "Music/Foregone.umx")) {
+            assertTrue(rel, File(data, rel).isFile)
+        }
+        assertTrue(File(sys, "Maps").exists().not())
+        assertTrue(File(data, "Maps").listFiles()!!.none { it.name.endsWith(".uz") })
+        assertTrue(File(sys, "System").listFiles()!!.none { it.extension in setOf("exe", "dll", "int") && it.name != "skeletalchars.int" })
+        // Same maps as the dev install (retail + BP4).
+        val ours = File(data, "Maps").list()!!.map { it.lowercase() }.toSet()
+        val dev = retailMaps.list()?.map { it.lowercase() }?.toSet().orEmpty()
+        println("maps: ours ${ours.size}, dev ${dev.size}, missing ${dev - ours}, extra ${ours - dev}")
+        println("internal MB ${sys.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}, " +
+                "data MB ${data.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}")
+    }
+
+    @Test
+    fun uzMapsMatchTheRetailInstall() {
+        assumeTrue(iso.exists() && retailMaps.exists())
+        var checked = 0
+        IsoReader(iso).use { r ->
+            for (e in r.entries().filter { it.path.startsWith("Maps/") && it.path.endsWith(".uz") }) {
+                val result = UzDecoder.decode(r.read(e))
+                val expected = File(retailMaps, result.fileName)
+                if (!expected.exists()) continue
+                assertArrayEquals(e.path, expected.readBytes(), result.data)
+                checked++
+            }
+        }
+        println("uz maps identical to retail: $checked")
+        assertTrue(checked > 50)
+    }
+}
