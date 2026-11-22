@@ -100,9 +100,13 @@ class SetupActivity : ComponentActivity() {
         LaunchedEffect(windowHasFocus, key) {
             if (!windowHasFocus) return@LaunchedEffect
             inputMode.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
-            // The previous screen's focused button was just removed: let this screen lay out first.
-            kotlinx.coroutines.delay(100)
-            runCatching { focus.requestFocus() }
+            // The previous screen's focused button was just removed and this screen may still be laying out: retry
+            // for a moment until the button holds the focus.
+            repeat(10) {
+                kotlinx.coroutines.delay(80)
+                if (runCatching { focus.requestFocus(); focus.captureFocus().also { if (it) focus.freeFocus() } }
+                        .getOrDefault(false)) return@LaunchedEffect
+            }
         }
     }
 

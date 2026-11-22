@@ -1,12 +1,15 @@
-# Add project specific R8 rules here.
-# AGP will combine all keep rule files in src/main/keepRules to pass to R8
-#
-# For more details, see
-#   https://d.android.com/r/tools/r8/keep-rules
+# Native code calls into Java by name: keep SDL's Java side whole (SDLActivity, controller/audio managers).
+-keep class org.libsdl.app.** { *; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# JNI: libutloader exports Java_com_lscardinali_unrealtournament_* functions for these classes' native methods.
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
+-keep class com.lscardinali.unrealtournament.NativeGameActivity { *; }
+
+# Apache Commons Compress: optional codecs and OSGi/ASM bits we don't use.
+-dontwarn org.apache.commons.compress.**
+-dontwarn org.brotli.**
+-dontwarn com.github.luben.zstd.**
+-dontwarn org.objectweb.asm.**
+-dontwarn org.osgi.**

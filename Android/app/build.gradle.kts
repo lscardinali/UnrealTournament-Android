@@ -45,10 +45,15 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
-            optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
-            }
+            // Maintenance only (./gradlew assembleRelease -PdebuggableRelease): lets adb run-as into a release install,
+            // e.g. to restore saves; an update with the normal build keeps the data.
+            isDebuggable = project.hasProperty("debuggableRelease")
+            // Whole-app R8 (keep rules in src/main/keepRules/rules.keep: JNI entry points and SDL's Java side).
+            // A package-scoped optimization of only androidx/kotlin broke Kotlin classes at runtime
+            // (IllegalAccessError in ProcessLifecycleInitializer).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
     compileOptions {

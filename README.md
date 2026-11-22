@@ -94,6 +94,10 @@ The build runs on Windows with Git Bash, Android Studio (its JDK and the Android
    (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); without it the release build is signed with the debug
    key.
 
+Maintenance: `./gradlew assembleRelease -PdebuggableRelease` builds the same release but debuggable, so
+`adb shell run-as` can reach an installed copy (for example to back up or restore saves). Installing the normal
+build over it keeps the data.
+
 PC unit tests (the CD image reader and map decompressor against real data, when present):
 `./gradlew :app:testDebugUnitTest`.
 
