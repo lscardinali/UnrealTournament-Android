@@ -54,3 +54,6 @@ __pycache__/
 
 # PadUI 227 build output
 /native/padui/out-227/
+
+# Source icon files dropped in the root
+/*.ico
