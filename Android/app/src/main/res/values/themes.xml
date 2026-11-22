@@ -2,4 +2,9 @@
 <resources>
 
     <style name="Theme.UnrealTournament" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- The launcher activity: black, fullscreen, no splash image (values-v31 for Android 12+'s splash screen). -->
+    <style name="Theme.Launcher" parent="android:Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

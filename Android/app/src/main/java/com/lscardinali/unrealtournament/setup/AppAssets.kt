@@ -16,9 +16,10 @@ object AppAssets {
         val targets = listOf(
             "runtime/libgcc_s.so.1" to File(ctx.filesDir, "glibc/libgcc_s.so.1"),
             "runtime/libstdc++.so.6" to File(ctx.filesDir, "glibc/libstdc++.so.6"),
+        ) + if (Product.current === Product.UT) listOf(
             "padui/PadUI.u" to File(game, "System/PadUI.u"),
             "padui/PadUI.int" to File(game, "SystemLocalized/int/PadUI.int"),
-        )
+        ) else emptyList() // Unreal: the 227 build (assets/padui-227), installed by UnrealConfig
         if (!force && prefs.getLong("assetsStamp", 0) == stamp && targets.all { it.second.exists() }) return
         for ((asset, dest) in targets) {
             dest.parentFile?.mkdirs()

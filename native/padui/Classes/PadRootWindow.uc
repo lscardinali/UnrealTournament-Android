@@ -77,8 +77,9 @@ function bool Focusable(UWindowWindow W)
 {
 	if (UWindowListBox(W) != None)
 		return True;
-	if (UBrowserServerGrid(W) != None || UBrowserTypesGrid(W) != None)
-		return True; // server browser lists // lists also live in splitter frames (map list, mutators)
+	if (UBrowserServerGrid(W) != None)
+		return True; // server browser list
+	if (UBrowserTypesGrid(W) != None) return True; // game-type filter grid //#UT
 	if (UWindowDialogControl(W) == None || UWindowDialogClientWindow(W.ParentWindow) == None)
 		return False;
 	if (UWindowButton(W) != None)
@@ -463,7 +464,8 @@ function bool PadKey(int Key)
 	local UWindowListBox List;
 	local UWindowListBoxItem Item;
 	local UBrowserServerGrid SGrid;
-	local UBrowserTypesGrid TGrid;
+	local UBrowserTypesGrid TGrid; //#UT
+	//#227 local UBrowserServerGrid TGrid; // 227's browser has no game-type grid: TGrid stays None
 	local int Row, Rows;
 
 	D = PadDialog();
@@ -513,7 +515,7 @@ function bool PadKey(int Key)
 
 	// Server browser grids: Up/Down pick a row and leave the grid at either end; A joins the server / toggles the type.
 	SGrid = UBrowserServerGrid(PadFocus);
-	TGrid = UBrowserTypesGrid(PadFocus);
+	TGrid = UBrowserTypesGrid(PadFocus); //#UT
 	if (SGrid != None || TGrid != None)
 	{
 		if (SGrid != None) { Row = SGrid.GetSelectedRow(); Rows = SGrid.Count; }
@@ -757,7 +759,7 @@ function KbType(string Ch)
 				return;
 		}
 	}
-	KbEdit.InsertUnicode(Ch);
+	KbEdit.InsertText(Ch); // InsertUnicode takes a string in UT, a char code in 227
 }
 
 // The selected key: a character, or "#shift", "#space", "#del", "#done" on the bottom row.
@@ -934,6 +936,11 @@ function bool HotKeyUp(int Key, float X, float Y)
 		EvLog = Right(EvLog $ " U" $ Key $ "@" $ (PadFrame % 1000), 200);
 	if (IsJoyKey(Key))
 		return True;
+	// 227's key-binding window cancels the wait on any key release (KeyUp -> CancelKeySelection): the release of
+	// the Enter the bridge sends with A would end it before the pad button to bind is pressed. Swallow releases
+	// while a binding waits, and right after one was made.
+	if (UpdatePolling() != None || PadFrame - PollEndFrame < 15)
+		return True;
 	return Super.HotKeyUp(Key, X, Y);
 }
 
@@ -1062,7 +1069,8 @@ defaultproperties
       PadButtonName(13)="D-Pad Down"
       PadButtonName(14)="D-Pad Left"
       PadButtonName(15)="D-Pad Right"
-      ConfiguredGUIScale=3.000000
-      AutoGUIScale=False
+      ConfiguredGUIScale=3.000000 //#UT
+      AutoGUIScale=False //#UT
+      //#227 GUIScale=3.000000
       LookAndFeelClass="UMenu.UMenuBlueLookAndFeel"
 }

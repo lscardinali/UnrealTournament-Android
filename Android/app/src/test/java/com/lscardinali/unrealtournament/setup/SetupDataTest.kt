@@ -1,6 +1,7 @@
 package com.lscardinali.unrealtournament.setup
 
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -12,7 +13,9 @@ import java.io.File
  *   decompressed by the original installer). Tests run from Android/app.
  */
 class SetupDataTest {
-    private val root = File("../..").canonicalFile
+    // The repo root; a worktree (e.g. ../UTAndroid-unreal) uses the main checkout's downloads/ and game files.
+    private val root = listOf(File("../.."), File("../../../UTAndroid")).map { it.canonicalFile }
+        .firstOrNull { File(it, "downloads").isDirectory } ?: File("../..").canonicalFile
     private val iso = File(root, "downloads/UT_GOTY_CD1.iso")
     private val retailMaps = File(root, "UnrealTournament/Maps")
 
@@ -56,6 +59,37 @@ class SetupDataTest {
         val dev = retailMaps.list()?.map { it.lowercase() }?.toSet().orEmpty()
         println("maps: ours ${ours.size}, dev ${dev.size}, missing ${dev - ours}, extra ${ours - dev}")
         println("internal MB ${sys.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}, " +
+                "data MB ${data.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}")
+    }
+
+    @Test
+    fun unrealGoldWith227() {
+        val ug = File(root, "downloads/UNREAL_GOLD.iso")
+        val patch = File(root, "downloads/OldUnreal-UnrealPatch227k-Linux.tar.bz2")
+        assumeTrue(ug.exists() && patch.exists())
+        val tmp = File(System.getProperty("java.io.tmpdir"), "unreal-setup-test").apply { deleteRecursively() }
+        val sys = File(tmp, "internal")
+        val data = File(tmp, "sdcard")
+        val inst = GameInstaller(sys, data, { false }, GameInstaller.Game.UNREAL) { _, _ -> }
+        inst.extractIso(ug)
+        inst.extractPatch(patch)
+        inst.finish()
+        for (rel in listOf("SystemARM64/unreal-bin-arm64", "SystemARM64/XOpenGLDrv.so", "SystemARM64/libSDL3.so.0",
+                           "SystemARM64/DefaultLinux.ini", "SystemARM64/DefUser.ini", "System/UMenu.u",
+                           "System/UnrealShare.u", "System/DefaultLinux.ini", "Help/Unreal.ico")) {
+            assertTrue(rel, File(sys, rel).isFile)
+        }
+        for (rel in listOf("Maps/Vortex2.unr", "Maps/Entry.unr", "Textures/Ancient.utx", "Music/Vortex.umx")) {
+            assertTrue(rel, File(data, rel).isFile)
+        }
+        // Exact names (the PC's file system ignores case).
+        assertEquals(listOf("Help", "System", "SystemARM64", "SystemLocalized", "WebServer"), sys.list()!!.sorted())
+        assertEquals(listOf("Maps", "Music", "Sounds", "Textures"), data.list()!!.sorted())
+        val system = File(sys, "System").list()!!.toList()
+        assertTrue(system.none { it.lowercase().endsWith(".exe") || it.lowercase().endsWith(".dll") })
+        assertTrue(system.none { it.contains(".so") || it.endsWith("-x86") }) // 227's x86 build
+        println("unreal: maps ${File(data, "Maps").list()!!.size}, " +
+                "internal MB ${sys.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}, " +
                 "data MB ${data.walkTopDown().filter { it.isFile }.sumOf { it.length() } shr 20}")
     }
 
