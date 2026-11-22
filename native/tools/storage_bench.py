@@ -22,14 +22,16 @@ PKG = "com.lscardinali.unrealtournament"
 
 
 def sh(cmd, root_app=False):
-    if root_app:
-        cmd = f"run-as {PKG} sh -c '{cmd}'"
-    return subprocess.run([ADB, "shell", cmd], capture_output=True, text=True).stdout
+    """adb shell; root_app runs it as the app (run-as) without a nested shell, so arguments need no quoting."""
+    args = [ADB, "shell"] + (["run-as", PKG] + cmd.split() if root_app else [cmd])
+    return subprocess.run(args, capture_output=True, text=True).stdout
 
 
 def dd_rate(path, bs):
-    out = sh(f"dd if='{path}' of=/dev/null bs={bs} 2>&1", root_app=True)
-    m = re.search(r"([\d.]+) ([KMG])?B/s", out)
+    r = subprocess.run([ADB, "shell", "run-as", PKG, "dd", f"if={path}", "of=/dev/null", f"bs={bs}"],
+                       capture_output=True, text=True)
+    out = r.stdout + r.stderr
+    m = re.search(r"([\d.]+) ?([KMG])?B?/s", out)  # toybox dd: "75 M/s"
     if not m:
         return out.strip().splitlines()[-1] if out.strip() else "?"
     v = float(m.group(1)) * {"K": 1e-3, "M": 1, "G": 1e3, None: 1e-6}[m.group(2)]
@@ -42,7 +44,13 @@ def raw_reads():
     maps = [m for m in maps if m.endswith(".unr")]
     target = sh(f"readlink {game}/Maps", root_app=True).strip() or "(internal)"
     print(f"Maps folder: {target}")
-    big = sorted(maps, key=lambda m: -int(sh(f"stat -L -c %s {game}/Maps/{m}", root_app=True) or 0))[:4]
+    sizes = {}
+    for m in maps:
+        try:
+            sizes[m] = int(sh(f"stat -L -c %s {game}/Maps/{m}", root_app=True).strip() or 0)
+        except ValueError:
+            sizes[m] = 0
+    big = sorted(maps, key=lambda m: -sizes[m])[:4]
     for bs, f in zip(["1k", "64k", "1k", "64k"], big):
         print(f"  bs={bs:>3}  {f:<28} {dd_rate(f'{game}/Maps/{f}', bs)}")
 
@@ -55,7 +63,7 @@ def load_time(map_name):
     sh(f"am start -n {PKG}/.MainActivity --es args '{map_name}?Game=Botpack.DeathMatchPlus'")
     log = "files/home/.utpg/System/UnrealTournament.log"
     while time.time() - t0 < 90:
-        if "up for play" in sh(f"grep -a 'up for play' {log}", root_app=True):
+        if f"Bringing Level {map_name}" in sh(f"cat {log}", root_app=True):
             print(f"  {map_name}: playable {time.time() - t0:.1f} s after am start")
             return
         time.sleep(0.25)

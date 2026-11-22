@@ -328,9 +328,11 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
     protected void enableSensor(int sensortype, boolean enabled) {
         // TODO: This uses getDefaultSensor - what if we have >1 accels?
         if (enabled) {
+            // UTAndroid: the game doesn't use SDL's accelerometer joystick (hidden by the loader); SDL only needs it
+            // to notice the device being flipped, so the normal rate (~5 Hz) instead of 50 Hz saves wakeups.
             SDLSensorManager.registerListener(mSensorManager, this,
                             mSensorManager.getDefaultSensor(sensortype),
-                            SensorManager.SENSOR_DELAY_GAME);
+                            SensorManager.SENSOR_DELAY_NORMAL);
         } else {
             SDLSensorManager.unregisterListener(mSensorManager, this,
                             mSensorManager.getDefaultSensor(sensortype));

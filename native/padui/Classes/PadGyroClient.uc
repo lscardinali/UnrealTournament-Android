@@ -39,7 +39,6 @@ function Created()
 	FpsCombo.SetFont(F_Normal);
 	FpsCombo.SetEditable(False);
 	FpsCombo.AddItem("Display maximum", "0");
-	FpsCombo.AddItem("90 fps", "90");
 	FpsCombo.AddItem("60 fps", "60");
 	FpsCombo.SetSelectedIndex(0);
 
@@ -119,7 +118,8 @@ function string FormatCurve(float V)
 	local int I;
 
 	I = int(V + 0.5);
-	return string(I / 100) $ "." $ Right("0" $ string(I % 100), 2);
+	// (UnrealScript's % works on floats: keep to ints here, "1.50" not "1.00")
+	return string(I / 100) $ "." $ Right("0" $ string(I - (I / 100) * 100), 2);
 }
 
 // ---------------------------------------------------------------- native settings (clipboard channel)

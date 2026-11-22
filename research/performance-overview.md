@@ -34,7 +34,7 @@ from it at about 119 fps.
    match with gyro aiming on (stopped in menus and when switched off in Handheld Settings).
 3. **Performance overlay hidden by default.** Its sampling (proc stats, battery, GPU every 500 ms) and drawing now
    only run when it is shown: Mod > Handheld Settings > Performance overlay, or L3 + R3.
-4. **Frame rate limit.** Mod > Handheld Settings > Frame rate limit: Display maximum / 90 / 60 fps. It switches the
+4. **Frame rate limit.** Mod > Handheld Settings > Frame rate limit: Display maximum / 60 fps (the RP6 panel has 60 and 120 Hz modes only). It switches the
    panel's display mode, so the GPU, the CPU and the panel itself all do less. Expect the biggest battery gain of
    anything here at 60 fps (roughly half the GPU and game-thread work). Look speed and gyro are frame-rate
    independent, so aiming feels the same.
@@ -66,3 +66,21 @@ from it at about 119 fps.
   (files/handheld.cfg).
 - Stick curve 1.5 and turn boost: feel. Turn speed at full deflection is unchanged (axis at half range, binding
   speed doubled), so only mid-stick aiming is slower.
+
+## Measured after this pass (2026-11-22, RP6, game installed on the SD card)
+
+- Handheld Settings window: works with the pad; the clipboard channel reaches the app (overlay shows/hides, values
+  saved in files/handheld.cfg and restored after a restart). Fixed during the test: the curve label/value
+  ("1.00" for 1.50, UnrealScript's `%` is a float operator) and the 90 fps option (the panel only has 60 and 120 Hz
+  modes; 90 fell back to 60).
+- Frame rate limit 60: display mode 60 Hz (SurfaceFlinger), game at 58-60 fps. In the menus GPU busy 24% -> 12%,
+  app CPU 69% -> 52% of a core.
+- Gyro sensor: active in a match, unregistered in menus (dumpsys sensorservice).
+- SDL's own accelerometer listener (SDLSurface, used only to notice a flip) was at 50 Hz: now 5 Hz
+  (SENSOR_DELAY_NORMAL, verified 200000 us sampling period).
+- Look stick migration v7 applied (JoyZ 1600 / JoyR -1100); the user's gyro sensitivity kept.
+- Tab strip: Video -> Right = Game (same row), Down = Controls (row below). Scroll pane: Down walks every control of a
+  long page (scrolling) before reaching Close.
+- Storage (`native/tools/storage_bench.py`): SD card Maps read at ~75 MB/s with 1 KB and with 64 KB requests (files
+  in the page cache; a cold read needs root to drop caches, so the read-buffer gain can't be isolated here).
+  DM-Deck16][ playable 2.5 s after `am start`, from the SD card. Loading is not a bottleneck.
