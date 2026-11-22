@@ -274,7 +274,7 @@ gyro and stick translation.
 - `GyroAim.kt`: `TYPE_GYROSCOPE` (qmi8658, non-wakeup) at 200 Hz while the activity is resumed. Device axes are
   remapped to screen axes by display rotation; yaw = -rate about the screen's vertical axis (turn right +),
   pitch = +rate about its horizontal axis (top edge towards you = look up). Rates under 0.75 deg/s fade out
-  quadratically (tightening). Sensitivity 8.0x real-world (1.5x, 2x and 4x felt slow). The angle (micro-radians) goes over JNI `nativeGyro` into
+  quadratically (tightening). Sensitivity 16x nominal (1.5x-8x felt slow, so the nominal scale is probably off; measure it). The angle (micro-radians) goes over JNI `nativeGyro` into
   `shared_state.gyro_yaw/pitch`.
 - `SDL_utandroid.c`: `UTA_NAXES` 6; axes 4/5 take the accumulated angle once per game frame (frame counter change),
   converted for `Speed=1000` (full axis = 16000 units, ~88 deg/frame), no `look_scale`; zero in menus.

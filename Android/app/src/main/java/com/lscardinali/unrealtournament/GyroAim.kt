@@ -73,7 +73,7 @@ class GyroAim(private val activity: Activity, private val send: (yawMicroRad: In
     }
 
     companion object {
-        const val DEFAULT_SENSITIVITY = 8.0
+        const val DEFAULT_SENSITIVITY = 16.0
         private const val SAMPLING_PERIOD_US = 5000          // 200 Hz (higher needs HIGH_SAMPLING_RATE_SENSORS)
         private const val TIGHTEN_RAD_S = 0.75 * Math.PI / 180 // 0.75 deg/s
     }
