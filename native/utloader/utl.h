@@ -1,6 +1,6 @@
 /*
  * utloader — loads glibc-linked aarch64 ELF modules (UT469 Linux build, GNU libstdc++/libgcc_s) into a bionic
- * (Android) process. See research/native-port-plan.md.
+ * (Android) process. See docs/native-port-plan.md.
  */
 #ifndef UTL_H
 #define UTL_H

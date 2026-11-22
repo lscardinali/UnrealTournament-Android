@@ -13,7 +13,7 @@ import java.io.File
 /**
  * The native (in-process) port: stock SDL3 for Android hosts UT's own Linux arm64 binaries, loaded into this
  * process by libutloader.so (native/utloader). No glibc process, no X server: Android SDL3 for window/input,
- * Qualcomm's Vulkan driver straight to this activity's surface. See research/native-port-plan.md.
+ * Qualcomm's Vulkan driver straight to this activity's surface. See docs/native-port-plan.md.
  *
  * Controller: SDL's virtual "UTAndroid controller" (SDL_utandroid.c, native-pad mode) reads the real pad and
  * shapes it exactly like the X11 build; the menu cursor is drawn here ([CursorOverlay]); L3+R3 toggles the

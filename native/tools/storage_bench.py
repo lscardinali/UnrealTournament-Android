@@ -12,12 +12,16 @@ Storage benchmark for the installed game (native build), over adb. Run when the 
    storage and on the SD card to compare.
 """
 import os
+import shutil
 import re
 import subprocess
 import sys
 import time
 
-ADB = os.path.expandvars(r"C:\Users\lucas\AppData\Local\Android\Sdk\platform-tools\adb.exe")
+ADB = shutil.which("adb") or os.path.join(
+    os.environ.get("ANDROID_HOME")
+    or os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Android", "Sdk"),
+    "platform-tools", "adb")
 PKG = "com.lscardinali.unrealtournament"
 
 

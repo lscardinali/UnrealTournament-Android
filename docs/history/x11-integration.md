@@ -11,7 +11,7 @@ display activity shows the X screen.
 
 ## What was added
 
-| Path (under `D:\Developer\UTAndroid\Android`) | What |
+| Path (under `Android/`) | What |
 |---|---|
 | `third_party/termux-x11/` | `git clone https://github.com/termux/termux-x11` at **e3a1657b781f7a880160d7ce5cdd48b866e062dd** (the commit pocket-foundry pins), with its 16 submodules checked out recursively at depth 1. This is a plain clone, not a submodule, because our project isn't a git repo. |
 | `third_party/patches/termux-x11/0001..0018-*.patch` | pocket-foundry's patches, copied as-is and converted to LF line endings (see fixes). |

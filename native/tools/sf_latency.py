@@ -10,11 +10,15 @@ We sample repeatedly for [seconds], merge, and report intervals between actual p
 """
 import collections
 import os
+import shutil
 import subprocess
 import sys
 import time
 
-ADB = os.path.expandvars(r"C:\Users\lucas\AppData\Local\Android\Sdk\platform-tools\adb.exe")
+ADB = shutil.which("adb") or os.path.join(
+    os.environ.get("ANDROID_HOME")
+    or os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Android", "Sdk"),
+    "platform-tools", "adb")
 LAYER_HINT = "SurfaceView[com.lscardinali.unrealtournament/com.lscardinali.unrealtournament.GameActivity](BLAST)"
 
 

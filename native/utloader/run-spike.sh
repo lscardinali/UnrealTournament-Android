@@ -3,7 +3,8 @@
 #   bash native/utloader/run-spike.sh          M0 checks
 #   bash native/utloader/run-spike.sh ucc help M0 + run ucc-bin-arm64 help through the loader
 set -uo pipefail
-export MSYS_NO_PATHCONV=1 PATH="$PATH:/c/Users/lucas/AppData/Local/Android/Sdk/platform-tools"
+export MSYS_NO_PATHCONV=1
+source "$(dirname "$0")/../android-env.sh"
 HERE="$(cd "$(dirname "$0")" && pwd -W)"
 NATIVE="$(cd "$(dirname "$0")/.." && pwd -W)"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -W)"

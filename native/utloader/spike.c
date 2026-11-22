@@ -1,5 +1,5 @@
 /*
- * utloader spike (M0/M1 of research/native-port-plan.md), a plain bionic executable run over adb:
+ * utloader spike (M0/M1 of docs/native-port-plan.md), a plain bionic executable run over adb:
  *
  *   utl-spike <glibc-lib-dir> <game-System-dir> <test-lib-dir>              M0 checks
  *   utl-spike <glibc-lib-dir> <game-System-dir> <test-lib-dir> ucc [args]   + run ucc-bin-arm64 [args]

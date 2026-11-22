@@ -257,7 +257,7 @@ typedef struct {
 } game_args;
 
 /* Which game: UT by default; UTL_EXE / UTL_SYSTEM_DIR / UTL_HOME (set by the activity) run another one, e.g.
-   Unreal 227's SystemARM64/unreal-bin-arm64 (research/unreal-227-spike.md). */
+   Unreal 227's SystemARM64/unreal-bin-arm64 (docs/unreal-227-spike.md). */
 static const char *game_exe = "ut-bin-arm64";
 
 static void *game_thread(void *p) {

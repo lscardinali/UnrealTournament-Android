@@ -286,4 +286,4 @@ gyro and stick translation.
 - Settings: Mod > "Gyro Aiming" (PadUI: PadGyroMenuItem / PadGyroWindow / PadGyroClient, listed via
   SystemLocalized/int/PadUI.int). On/off, Sensitivity 25-300% (100% = the tuned base), Invert up/down. Changes apply
   live with `SET Input JoyU/JoyV Axis ... Speed=16000*sens` (0 = off, negative pitch = inverted), saved in User.ini and
-  [PadUI.PadGyroClient] in UnrealTournament.ini. Verified on the native build with injected pad (research/gy5..gy6.png).
+  [PadUI.PadGyroClient] in UnrealTournament.ini. Verified on the native build with injected pad.

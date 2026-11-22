@@ -11,12 +11,16 @@ Per build: launch into the map, let it settle, then sample every ~0.5 s:
     between builds means something (more load -> less net charge)
 """
 import os
+import shutil
 import statistics
 import subprocess
 import sys
 import time
 
-ADB = os.path.expandvars(r"C:\Users\lucas\AppData\Local\Android\Sdk\platform-tools\adb.exe")
+ADB = shutil.which("adb") or os.path.join(
+    os.environ.get("ANDROID_HOME")
+    or os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Android", "Sdk"),
+    "platform-tools", "adb")
 PKG = "com.lscardinali.unrealtournament"
 TICKS = 100.0  # USER_HZ
 

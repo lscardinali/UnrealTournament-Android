@@ -1,7 +1,7 @@
 # UT99 (OldUnreal 469f, linux-arm64) on Android: Architecture Options
 
 Target: Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740, Android 13 / API 33, 12 GB RAM).
-Input binaries: `D:\Developer\UTAndroid\linux-arm64\System` (closed-source glibc aarch64 ELF).
+Input binaries: `linux-arm64/System` (closed-source glibc aarch64 ELF).
 Date: 2026-11-21.
 
 **Recommendation: Option B, in-process loading.** Write a custom ELF loader that runs inside a normal
@@ -10,7 +10,7 @@ real Android SDL3, and resolves `libopenal.so.1` and the codec libraries to NDK 
 are still required (see 3.4). Before starting, spend about a day running the binaries unmodified under Termux +
 glibc + Turnip + Termux:X11 (Option C) to confirm the game itself works on Adreno/aarch64.
 
-Raw symbol data is in `D:\Developer\UTAndroid\research\symbol-imports\`:
+Raw symbol data is in `docs/symbol-imports/`:
 `game_glibc.txt`, `game_cxx.txt`, `game_sdl.txt`, `all_glibc.txt`, and `per-module/*.und`.
 
 ---

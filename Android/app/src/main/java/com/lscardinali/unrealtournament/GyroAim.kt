@@ -11,7 +11,7 @@ import kotlin.math.abs
 /**
  * Gyro aiming: reads the device gyroscope while the game is in the foreground and hands the angle turned (yaw and
  * pitch, in screen space, micro-radians) to the SDL bridge, which turns it into the virtual pad's gyro axes once per
- * game frame (JoyU = turn, JoyV = look up; see SDL_utandroid.c and research/aim-assist.md).
+ * game frame (JoyU = turn, JoyV = look up; see SDL_utandroid.c and docs/aim-assist.md).
  *
  * Turning the device left turns left; tilting its top edge towards you looks up. Stick and gyro add together.
  * Very slow rotation (hand tremor) is attenuated ("tightening"), so the view holds still when you do.

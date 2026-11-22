@@ -1,4 +1,4 @@
-# Game data and OldUnreal binaries (not ours to redistribute; see research/PLAN.md for where they come from)
+# Game data and OldUnreal binaries (not ours to redistribute; see native/SOURCES.md for where they come from)
 /UnrealTournament/
 /linux-arm64/
 /OldUnreal-*.tar.bz2
@@ -34,7 +34,7 @@
 *.aab
 
 # Device screenshots from testing
-/research/*.png
+/research/
 
 # Python / editors
 __pycache__/

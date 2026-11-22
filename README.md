@@ -138,7 +138,8 @@ PC unit tests (the CD image reader and map decompressor against real data, when 
   and the Handheld Settings window.
 - `Android/app`: the setup (download, CD image reader, `.uz` map decompressor, installer), the game activity,
   overlays and ini defaults.
-- `research/`: design notes and measurements (performance, controller, setup, small-screen UI, aim assist).
+- `docs/`: design notes and measurements (loader design, performance, controller, setup, small-screen UI, aim
+  assist). `docs/history/` keeps the notes from earlier approaches (the X11 build, alternatives considered).
 
 ## Legal and licences
 

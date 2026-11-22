@@ -312,7 +312,7 @@ This is the cheapest. The layer already knows menu mode (relative mouse off) and
 UWindow has no keyboard focus when the menus open, so the D-pad did nothing until Select (Alt+G).
 SDL_utandroid.c now sends Alt+G once, 250 ms after entering menu mode (`menu_focus_at`), opening the
 "Game" pulldown so the D-pad works immediately. Only fires on the in-game → menu transition, not for later dialogs.
-Verified (X11 build): Start, then Down x2 → "Start Practice Session" highlighted (research/menu2.png).
+Verified (X11 build): Start, then Down x2 → "Start Practice Session" highlighted.
 
 ### PadUI spike (2026-11-22) — works
 `native/padui/Classes/PadRootWindow.uc` (one class, ~400 lines) compiled with the PC install's `UCC.exe`
@@ -330,18 +330,18 @@ Installed by GameConfig every launch: `[UTMenu.UTConsole] RootWindow=PadUI.PadRo
 
 Verified on device (X11 build, injected pad): Options > Preferences opens with A, box starts on the first control,
 Down x9 to Brightness, Right adjusts it, scrolling follows to the bottom of Video, Down reaches Close, R1/L1 switch
-tabs, A toggles a checkbox, A opens the Output Rate list and B closes just the list (research/padA..H.png).
+tabs, A toggles a checkbox, A opens the Output Rate list and B closes just the list.
 Not covered yet: list boxes (map lists, server browser, bot/skin lists), key-binding grid (Controls tab), edit boxes
 need a text-entry path, Down from a scroll pane's last visible row can jump to the Close button before scrolling.
 - Tab strip focus (added): Up past the top control focuses the page control's tab strip (box on the selected tab);
-  Left/Right (or L1/R1) switch tabs, Down/A return to the page's first control. Verified (research/tabA..C.png).
+  Left/Right (or L1/R1) switch tabs, Down/A return to the page's first control. Verified.
   Left/Right follow the tab list order (Video, Audio, Game, ...), not the two-row visual layout.
 - GUI scale default is now 3.0, the slider maximum (640x360 virtual desktop): `[PadUI.PadRootWindow]` and
   `[UMenu.UMenuRootWindow]` in GameConfig.systemDefaults (DEFAULTS_VERSION 4) plus the class default.
-  Start Practice Session and Preferences fit and stay readable (research/lb1.png).
+  Start Practice Session and Preferences fit and stay readable.
 - List boxes (added): any UWindowListBox is focusable, including those in splitter frames (Map List, Mutators).
   Entering selects the first item; Up/Down walk items (scrolling) and leave the list at either end; A = the list's
-  double-click action (moves a mutator/map to the other list). Verified on Mutators (research/lb4..lb11.png).
+  double-click action (moves a mutator/map to the other list). Verified on Mutators.
 - Direction rule tightened: a candidate must start past the focused control's centre (a tall list's neighbour above
   no longer counts as "to the right").
 - Key bindings grid (added). The grid buttons were already reachable; binding needed pad buttons to reach UWindow:
@@ -351,14 +351,14 @@ need a text-entry path, Down from a scroll pane's last visible row can jump to t
   key half of the press that ended it, does nothing). Start (Escape only, never a Joy button) cancels without
   closing the dialog; every other pad button is bindable. The grid shows pad names (A, B, L2, D-Pad Up...) by
   rewriting the dialog's LocalizedKeyName[IK_Joy1..16]. Verified: Fire -> "X or Left Mouse", Start cancel
-  (research/kb16..18.png). Limitation (stock): each row shows only its first two keys, so pad bindings behind two
+ . Limitation (stock): each row shows only its first two keys, so pad bindings behind two
   keyboard keys are bound but not displayed (e.g. Fire = R2 shows "Left Mouse or Alt").
 - On-screen pad keyboard (added). A on a text field (UWindowEditControl, or an editable combo such as a server
   address) opens a 10x5 key grid drawn by PadRootWindow (preview line with caret on top). D-pad picks a key (wraps),
   A types it (bottom row: Shift / Space / Del / Done), B backspace, X space, Y shift (capitals + symbols),
   L1/R1 move the caret, Start or Done closes it. Numeric-only fields accept digits (and one '.' if float).
   Delayed-notify fields (player name) get their change notification on close. Mouse clicks are ignored while it is up.
-  Verified on Player Setup > Name: B,X,A,B,X,A,Right,A,Y,A on "Player" -> "Playe  qwW" (research/tx19..20.png).
+  Verified on Player Setup > Name: B,X,A,B,X,A,Right,A,Y,A on "Player" -> "Playe  qwW".
 - Two input fixes found while testing it:
   - The engine repeats a held Joy button as a press every frame with no release in between: PadUI counts a Joy press
     only if that button reported nothing in the previous 2 frames (`NewJoyPress`).
@@ -369,7 +369,7 @@ need a text-entry path, Down from a scroll pane's last visible row can jump to t
   A = the grid's double-click (join server / toggle type), X = refresh the server list.
   Pages with nothing focusable (the browser's News tab) now put the focus on the dialog's tab strip, so the D-pad
   walks the browser tabs. Verified on device: Find Internet Games via pad, Check Player Name dialog (No), tabs
-  News -> Favorites -> Populated Servers (research/sb1..sb8.png). The grid itself is NOT verified: the X11 build
+  News -> Favorites -> Populated Servers. The grid itself is NOT verified: the X11 build
   (the only one adb pad injection reaches) gets no servers, see below.
 - X11 build bug found: no hostname resolves in the game ("The master server could not be resolved:
   medor.no-ip.org") although the device resolves it. glibc's resolver reads /etc/resolv.conf, which Android lacks.
@@ -379,7 +379,7 @@ need a text-entry path, Down from a scroll pane's last visible row can jump to t
 - Native build test path (debug builds): NativeGameActivity forwards pad keys from virtual devices
   (`adb shell input gamepad keyevent ...`) via JNI nativeInjectButton -> shared_state.inject_buttons/inject_pressed
   -> OR-ed into the real pad in SDL_utandroid.c's UTANDROID_PollRealPad. Verified: Start / Right / Down / A opened
-  Find Internet Games on the native build (research/nb1.png). Testing is on the native build from now on.
+  Find Internet Games on the native build. Testing is on the native build from now on.
 - User report (native build): connected to an internet server from the browser, so DNS, master server list and
   join work there. The user picked the server with the D-pad and joined with A (grid navigation confirmed on a real pad).
 - Touchpad cursor (native build; replaces the stick cursor there). NativeGameActivity.dispatchTouchEvent consumes all
@@ -387,7 +387,7 @@ need a text-entry path, Down from a scroll pane's last visible row can jump to t
   touch under 300 ms -> a tap = left click held 50 ms (SDL_utandroid.c, menu mode only; drained outside menus).
   CursorOverlay only draws the cursor for 3 s after touchpad use. The sticks no longer move the cursor and Y/X no
   longer click on the native build; the X11 backup keeps its stick cursor. Verified: hidden by default, relative
-  swipe moves (research/tc1..tc5.png); user confirmed it works on the device.
+  swipe moves; user confirmed it works on the device.
 - Polish (2026-11-22, built, untested): tab strip D-pad follows the drawn layout (Left/Right within the row, Up/Down
   between rows, Down from the bottom row leaves the strip; L1/R1 keep list order). Scrolling pages: D-pad prefers
   controls in the same scroll pane before the dialog's buttons, so Down scrolls instead of jumping to Close.

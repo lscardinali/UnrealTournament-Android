@@ -8,7 +8,7 @@ import java.io.File
  *  - [system]: technical essentials, forced every launch (renderer, joystick on, resolution, first-run done).
  *  - [userDefaults] / [systemDefaults]: controller bindings and handheld-friendly preferences, applied ONCE per
  *    [DEFAULTS_VERSION] so changes made in UT's own menus stick. Bumping the version re-applies the whole set.
- *    Every key was checked against the 469f game files (research/controller-defaults.md, small-screen-ui.md,
+ *    Every key was checked against the 469f game files (docs/controller-defaults.md, small-screen-ui.md,
  *    aim-assist.md).
  *
  * UT469 on Linux keeps them in $HOME/.utpg/System/{UnrealTournament,User}.ini; on first run it creates them from

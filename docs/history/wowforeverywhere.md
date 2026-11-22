@@ -1,7 +1,7 @@
 # WoWForeverywhere: research notes for the UT99 Android port
 
 Source: https://github.com/YoruDev-Ryland/WoWForeverywhere, shallow clone at commit `c65c2c0` (2026-11-20).
-Local copy (read only, nothing run): `C:\Users\lucas\AppData\Local\Temp\claude\62e2e50c202d2847\37d637b1-7d34-488b-b04c-7f5edcf59aad\scratchpad\wowfe`.
+Read from a local clone (nothing run).
 All paths below are relative to that clone.
 
 ## TL;DR

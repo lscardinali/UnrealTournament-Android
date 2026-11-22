@@ -4,9 +4,8 @@
 # Its mixer runs on its own (bionic) threads and never calls into the game, so it needs nothing from our TLS.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-export PATH="/c/Users/lucas/AppData/Local/Android/Sdk/cmake/4.1.2/bin:$PATH"
-NDK=/c/Users/lucas/AppData/Local/Android/Sdk/ndk/28.2.13676358
-STRIP="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe"
+source "$HERE/../android-env.sh"
+STRIP="$NDK_BIN/llvm-strip$EXE"
 
 [ -d "$HERE/src" ] || git -c advice.detachedHead=false -c core.autocrlf=false clone -q --depth 1 -b 1.24.3 \
     https://github.com/kcat/openal-soft "$HERE/src"

@@ -4,9 +4,8 @@
 # The game's libSDL3.so.0 / libSDL3_ttf.so.0 imports resolve to these (utloader maps the names).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-export PATH="/c/Users/lucas/AppData/Local/Android/Sdk/cmake/4.1.2/bin:$PATH"
-NDK=/c/Users/lucas/AppData/Local/Android/Sdk/ndk/28.2.13676358
-STRIP="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe"
+source "$HERE/../android-env.sh"
+STRIP="$NDK_BIN/llvm-strip$EXE"
 ANDROID=(-DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" -DANDROID_ABI=arm64-v8a
          -DANDROID_PLATFORM=android-28 -DCMAKE_BUILD_TYPE=Release)
 
