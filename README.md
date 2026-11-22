@@ -1,4 +1,8 @@
-# Unreal Tournament for Android
+<p align="center">
+  <img src="Android/app/src/main/res/drawable-nodpi/ic_launcher_logo.png" alt="Unreal Tournament logo" width="128" height="128">
+</p>
+
+<h1 align="center">Unreal Tournament for Android</h1>
 
 Unreal Tournament (1999, Game of the Year Edition) on Android handhelds, running the
 [OldUnreal](https://www.oldunreal.com/) 469 community patch's own **Linux arm64** game binaries natively inside the
