@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Launcher icon foreground: the logo (drawable-nodpi/ic_launcher_logo.png, replace with a larger PNG for a sharper
-     icon) inset to fit the adaptive icon's 66 dp safe zone on the 108 dp canvas. -->
-<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="21%">
+     icon) inset to fit the adaptive icon's 66 dp safe zone, with some breathing room on the 108 dp canvas. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="27%">
     <bitmap
         android:src="@drawable/ic_launcher_logo"
         android:antialias="true"
