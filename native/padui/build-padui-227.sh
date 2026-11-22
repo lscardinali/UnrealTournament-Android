@@ -1,5 +1,5 @@
 #!/bin/bash
-# Compile PadUI.u for Unreal 227 with the Windows UCC of a 227 install (default: ../../Unreal, the spike's local
+# Compile PadUI.u for Unreal 227 with the Windows UCC of a 227 install (default: ../../Unreal, i.e. Unreal/ in the repo root, a local
 # copy; override with UNREAL=...). Same source as UT: lines tagged //#UT are dropped, //#227 lines are uncommented.
 # Output: native/padui/out-227/PadUI.u + PadUI.int, copied to the unreal flavor's assets (Android/app/src/unreal/assets/padui-227/).
 set -e

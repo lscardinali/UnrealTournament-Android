@@ -13,9 +13,8 @@ import java.io.File
  *   decompressed by the original installer). Tests run from Android/app.
  */
 class SetupDataTest {
-    // The repo root; a worktree (e.g. ../UTAndroid-unreal) uses the main checkout's downloads/ and game files.
-    private val root = listOf(File("../.."), File("../../../UTAndroid")).map { it.canonicalFile }
-        .firstOrNull { File(it, "downloads").isDirectory } ?: File("../..").canonicalFile
+    // The repo root (tests run from Android/app).
+    private val root = File("../..").canonicalFile
     private val iso = File(root, "downloads/UT_GOTY_CD1.iso")
     private val retailMaps = File(root, "UnrealTournament/Maps")
 
@@ -35,7 +34,8 @@ class SetupDataTest {
         val bp4 = File(root, "downloads/utbonuspack4-zip.7z")
         val patch = File(root, "OldUnreal-UTPatch469f-Linux-arm64.tar.bz2")
         assumeTrue(iso.exists() && bp4.exists() && patch.exists())
-        val tmp = File(System.getProperty("java.io.tmpdir"), "ut-setup-test").apply { deleteRecursively() }
+        val tmp = java.nio.file.Files.createTempDirectory("ut-setup-test").toFile()
+            .also { d -> Runtime.getRuntime().addShutdownHook(Thread { d.deleteRecursively() }) }
         val sys = File(tmp, "internal")
         val data = File(tmp, "sdcard")
         val inst = GameInstaller(sys, data, { false }) { _, _ -> }
@@ -67,7 +67,8 @@ class SetupDataTest {
         val ug = File(root, "downloads/UNREAL_GOLD.iso")
         val patch = File(root, "downloads/OldUnreal-UnrealPatch227k-Linux.tar.bz2")
         assumeTrue(ug.exists() && patch.exists())
-        val tmp = File(System.getProperty("java.io.tmpdir"), "unreal-setup-test").apply { deleteRecursively() }
+        val tmp = java.nio.file.Files.createTempDirectory("unreal-setup-test").toFile()
+            .also { d -> Runtime.getRuntime().addShutdownHook(Thread { d.deleteRecursively() }) }
         val sys = File(tmp, "internal")
         val data = File(tmp, "sdcard")
         val inst = GameInstaller(sys, data, { false }, GameInstaller.Game.UNREAL) { _, _ -> }
