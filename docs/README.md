@@ -16,6 +16,7 @@ tried, measured and decided, and why. Dates are when each was written.
 | [controller-defaults.md](controller-defaults.md) | The default bindings and handheld-friendly settings, checked against the game's scripts. |
 | [aim-assist.md](aim-assist.md) | UT's built-in auto-aim, gyro aiming (implemented, tuning), stick response. |
 | [device-findings.md](device-findings.md) | Retroid Pocket 6 hardware and software facts relevant to the port. |
+| [unreal-227-spike.md](unreal-227-spike.md) | The Unreal Gold app: Unreal 227 on the same glue, XOpenGL on GLES, the shim additions, PadUI for 227, setup, device tests. |
 | [symbol-imports/](symbol-imports/) | Every glibc, C++ and SDL symbol the game's binaries import, per module: what the shim has to provide. |
 
 ## History

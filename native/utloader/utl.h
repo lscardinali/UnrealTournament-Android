@@ -74,6 +74,7 @@ extern void utl_tlsdesc_return(void);           /* TLSDESC resolver for static o
 
 /* shim.c */
 void *utl_shim_lookup(const char *name);        /* our glibc -> bionic replacement, or NULL */
+void *utl_shim_preempt(const char *name);       /* replacement that wins over a game module's own definition */
 void *utl_bionic_lookup(const char *name);      /* pass-through to bionic libc/libm/libdl, or NULL */
 void *utl_trap_stub(const char *name);          /* a function that reports `name` and aborts when called */
 void utl_shim_set_args(int argc, char **argv);

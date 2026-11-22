@@ -20,8 +20,38 @@ class GameInstaller(
     private val systemRoot: File,
     private val dataRoot: File,
     private val cancelled: () -> Boolean,
+    private val game: Game = Game.UT,
     private val progress: (fraction: Float, detail: String) -> Unit,
 ) {
+    /** What differs between the games' OldUnreal installers. */
+    class Game(
+        /** CD folder -> install folder (matched case-insensitively). */
+        val isoDirs: Map<String, String>,
+        /** Decompress Maps/ *.uz from the CD (UT; Unreal Gold's maps aren't compressed). */
+        val decompressUz: Boolean,
+        /** Patch folders not installed (e.g. Unreal's x86-64 System64). */
+        val skipPatchDirs: Set<String> = emptySet(),
+        /** Patch files not installed (e.g. Unreal's 32-bit x86 binaries in System/). */
+        val skipPatchFile: (String) -> Boolean = { false },
+        /** The game's own ini files on the CD, never installed (the game writes them). */
+        val iniNames: Set<String>,
+    ) {
+        companion object {
+            /** UT GOTY + 469 (install-ut99.sh). */
+            val UT = Game(listOf("System", "Maps", "Textures", "Sounds", "Music", "Help", "Web").associateWith { it },
+                          decompressUz = true, iniNames = setOf("unrealtournament.ini", "user.ini"))
+
+            /** Unreal Gold + 227 (install-unreal.sh): UPPERCASE CD folders, Linux patch for all architectures. */
+            val UNREAL = Game(mapOf("SYSTEM" to "System", "MAPS" to "Maps", "TEXTURES" to "Textures", "SOUNDS" to "Sounds",
+                                    "MUSIC" to "Music", "HELP" to "Help"),
+                              decompressUz = false, skipPatchDirs = setOf("System64", "SystemARM"),
+                              // 227's Linux tarball: System/ holds the x86 (32-bit) build, SystemARM64/ ours.
+                              skipPatchFile = { rel -> rel.startsWith("System/") &&
+                                  (Regex("""\.so(\.\d+)*$""").containsMatchIn(rel) || rel.endsWith("-x86")) },
+                              iniNames = setOf("unreal.ini", "user.ini"))
+        }
+    }
+
     /** Where a game-relative path ("Maps/DM-Deck16][.unr") lives. */
     fun file(rel: String): File {
         val top = rel.substringBefore('/')
@@ -31,17 +61,17 @@ class GameInstaller(
     /** The CD image: the game folders only, minus the files OldUnreal skips; .uz maps decompressed on the way. */
     fun extractIso(iso: File) {
         IsoReader(iso).use { r ->
-            val files = r.entries().filter { !it.isDir && isoWanted(it.path) }
-            val total = files.sumOf { it.size }.coerceAtLeast(1)
+            val files = r.entries().filter { !it.isDir && isoWanted(it.path) }.map { it to isoTarget(it.path) }
+            val total = files.sumOf { it.first.size }.coerceAtLeast(1)
             var done = 0L
-            for (e in files) {
+            for ((e, rel) in files) {
                 check()
-                progress(done.toFloat() / total, e.path)
-                if (e.path.startsWith("Maps/", true) && e.path.endsWith(".uz", true)) {
+                progress(done.toFloat() / total, rel)
+                if (game.decompressUz && rel.startsWith("Maps/", true) && rel.endsWith(".uz", true)) {
                     val uz = UzDecoder.decode(r.read(e))
                     write(file("Maps/" + File(uz.fileName).name)) { it.write(uz.data) }
                 } else {
-                    write(file(e.path)) { out -> r.copy(e, out) }
+                    write(file(rel)) { out -> r.copy(e, out) }
                 }
                 done += e.size
             }
@@ -78,6 +108,7 @@ class GameInstaller(
                 check()
                 val rel = e.name.removePrefix("./").trimEnd('/')
                 if (rel.isEmpty() || e.isDirectory) continue
+                if (rel.substringBefore('/') in game.skipPatchDirs || game.skipPatchFile(rel)) continue
                 progress(counted.count.toFloat() / total, rel)
                 when {
                     e.isSymbolicLink -> links += rel to e.linkName
@@ -94,6 +125,12 @@ class GameInstaller(
     /** OldUnreal's fix-ups after the patch. */
     fun finish() {
         val dm = file("Maps/DM-Cybrosis][.unr")
+        // Unreal 227 reads its default ini files from the executable's folder (SystemARM64), they ship in System/.
+        val arm = file("SystemARM64")
+        if (arm.isDirectory) for (name in listOf("DefaultLinux.ini", "DefUser.ini")) {
+            val src = file("System/$name")
+            if (src.isFile && !File(arm, name).exists()) src.copyTo(File(arm, name))
+        }
         val dom = file("Maps/DOM-Cybrosis][.unr")
         if (dm.isFile && !dom.exists()) dm.copyTo(dom)
         // Translations: drop System/<file> when SystemLocalized/ (or SystemLocalized/<lang>/) has the same file.
@@ -107,14 +144,20 @@ class GameInstaller(
         }
     }
 
-    private fun isoWanted(path: String): Boolean {
+    private fun isoDir(path: String): String? {
         val top = path.substringBefore('/')
-        if (ISO_DIRS.none { it.equals(top, true) }) return false
+        return game.isoDirs.entries.firstOrNull { it.key.equals(top, true) }?.value
+    }
+
+    /** CD path -> install path ("SYSTEM/Engine.u" -> "System/Engine.u"; names inside keep the CD's case). */
+    private fun isoTarget(path: String): String = isoDir(path) + "/" + path.substringAfter('/')
+
+    private fun isoWanted(path: String): Boolean {
+        val dir = isoDir(path) ?: return false
         val name = path.substringAfterLast('/').lowercase()
         val ext = name.substringAfterLast('.', "")
         if (ext in LANGUAGE_EXTS) return false
-        if (top.equals("System", true) && (name == "unrealtournament.ini" || name == "user.ini" ||
-                ext == "bat" || ext == "dll" || ext == "exe")) return false
+        if (dir == "System" && (name in game.iniNames || ext == "bat" || ext == "dll" || ext == "exe")) return false
         return true
     }
 
@@ -153,7 +196,6 @@ class GameInstaller(
     companion object {
         /** Big read-only data: these can live on the SD card. */
         val DATA_DIRS = listOf("Maps", "Textures", "Sounds", "Music")
-        private val ISO_DIRS = listOf("System", "Maps", "Textures", "Sounds", "Music", "Help", "Web")
         private val LANGUAGE_EXTS = setOf("ctt", "det", "elt", "est", "frt", "int", "itt", "kot", "nlt", "ptt",
                                           "rut", "smt", "tmt")
     }

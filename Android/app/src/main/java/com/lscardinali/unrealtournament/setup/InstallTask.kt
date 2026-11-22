@@ -9,13 +9,18 @@ import kotlin.concurrent.thread
 
 /** The running setup, outliving the activity (one per process). */
 object InstallTask {
-    enum class Step(val title: String) {
-        DownloadGame("Download Unreal Tournament GOTY"),
-        DownloadBonus("Download Bonus Pack 4"),
-        DownloadPatch("Download the OldUnreal 469 patch"),
-        Unpack("Unpack the game"),
-        Patch("Apply Bonus Pack 4 and the patch"),
-        Finish("Finish setup"),
+    enum class Step { DownloadGame, DownloadBonus, DownloadPatch, Unpack, Patch, Finish }
+
+    /** The steps this game's setup shows (Unreal has no bonus pack). */
+    fun steps(p: Product = Product.current): List<Step> = Step.entries.filter { it != Step.DownloadBonus || p.bonus != null }
+
+    fun title(s: Step, p: Product = Product.current): String = when (s) {
+        Step.DownloadGame -> "Download ${p.iso.name}"
+        Step.DownloadBonus -> "Download ${p.bonus?.name}"
+        Step.DownloadPatch -> "Download the OldUnreal ${p.knownPatch.name}"
+        Step.Unpack -> "Unpack the game"
+        Step.Patch -> if (p.bonus != null) "Apply ${p.bonus.name} and the patch" else "Apply the patch"
+        Step.Finish -> "Finish setup"
     }
 
     data class State(
@@ -66,13 +71,16 @@ object InstallTask {
         val ua = "UTAndroid-Setup/1.0"
         val dl = Downloader(ua) { cancel }
         layout.downloads.mkdirs()
-        val iso = File(layout.downloads, "UT_GOTY_CD1.iso")
-        val bp4 = File(layout.downloads, "utbonuspack4-zip.7z")
+        val product = Product.current
+        val iso = File(layout.downloads, product.isoFile)
+        val bonus = product.bonusFile?.let { File(layout.downloads, it) }
 
         step(Step.DownloadGame)
-        dl.fetch(GameInstall.gameIso, iso, ::bytes) { detail("Verifying the download…") }
-        step(Step.DownloadBonus)
-        dl.fetch(GameInstall.bonusPack4, bp4, ::bytes) { detail("Verifying the download…") }
+        dl.fetch(product.iso, iso, ::bytes) { detail("Verifying the download…") }
+        if (product.bonus != null && bonus != null) {
+            step(Step.DownloadBonus)
+            dl.fetch(product.bonus, bonus, ::bytes) { detail("Verifying the download…") }
+        }
         step(Step.DownloadPatch)
         detail("Looking up the latest release…")
         val patchSource = GameInstall.latestPatch(ua)
@@ -80,14 +88,14 @@ object InstallTask {
         dl.fetch(patchSource, patch, ::bytes) { detail("Verifying the download…") }
 
         layout.clearStage()
-        val installer = GameInstaller(layout.systemStage, layout.dataStage, { cancel }) { f, d ->
+        val installer = GameInstaller(layout.systemStage, layout.dataStage, { cancel }, product.installer) { f, d ->
             _state.value = _state.value.copy(fraction = f, detail = d)
         }
         step(Step.Unpack)
         installer.extractIso(iso)
         iso.delete() // 650 MB back before the rest
         step(Step.Patch)
-        installer.extractBonusPack(bp4)
+        if (bonus != null) installer.extractBonusPack(bonus)
         installer.extractPatch(patch)
         step(Step.Finish)
         detail("Putting the game in place…")

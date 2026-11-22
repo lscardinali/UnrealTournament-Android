@@ -32,6 +32,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.lscardinali.unrealtournament.setup.GameInstall
 import com.lscardinali.unrealtournament.setup.InstallTask
+import com.lscardinali.unrealtournament.setup.Product
 import com.lscardinali.unrealtournament.setup.MetalButton
 import com.lscardinali.unrealtournament.setup.SelectPlate
 import com.lscardinali.unrealtournament.setup.SetupScaffold
@@ -117,8 +118,7 @@ class SetupActivity : ComponentActivity() {
         val gb = 1024.0 * 1024 * 1024
         SetupScaffold {
             SteelPanel(Modifier.fillMaxWidth(), title = if (reinstall) "Reinstall the game" else "Install the game") {
-                Text("Downloads the game (650 MB) and Bonus Pack 4 from OldUnreal, plus the latest 469 patch. " +
-                     "About 800 MB installed.", color = UT.Text, fontSize = 13.sp)
+                Text(Product.current.downloadText, color = UT.Text, fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
                 Text("INSTALL TO", color = UT.TextDim, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Spacer(Modifier.height(6.dp))
@@ -153,8 +153,8 @@ class SetupActivity : ComponentActivity() {
         val focus = remember { FocusRequester() }
         SetupScaffold {
             SteelPanel(Modifier.fillMaxWidth(), title = if (state.error != null) "Setup stopped" else "Installing") {
-                for (s in InstallTask.Step.entries) {
-                    StepRow(s.title, when {
+                for (s in InstallTask.steps()) {
+                    StepRow(InstallTask.title(s), when {
                         s.ordinal < state.step -> 2
                         s.ordinal == state.step -> if (state.error != null) 3 else 1
                         else -> 0
@@ -189,7 +189,7 @@ class SetupActivity : ComponentActivity() {
         val focus = remember { FocusRequester() }
         SetupScaffold {
             SteelPanel(Modifier.fillMaxWidth(), title = "Ready") {
-                Text("Unreal Tournament is installed.", color = UT.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(Product.current.installedText, color = UT.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text("Start opens the menus. Your controller works everywhere in them.", color = UT.TextDim,
                      fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(20.dp))

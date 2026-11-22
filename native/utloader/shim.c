@@ -1030,7 +1030,8 @@ static const char *abs_path(const char *p, char *buf, size_t n) {
 }
 
 /* Unreal 227's XOpenGLDrv (OpenGLVersion=ES) writes GLSL "#version 310 es" with GL_OES_shader_io_blocks and uses
-   gl_ClipDistance; Adreno's GLES 3.2 has I/O blocks in core 3.20 and clip distances via GL_EXT_clip_cull_distance.
+   gl_ClipDistance (redeclared); Adreno's GLES 3.2 has I/O blocks in core 3.20 and clip distances via
+   GL_EXT_clip_cull_distance, without the redeclaration.
    Rewrite each shader's header on its way to the driver. */
 typedef unsigned int GLuint_;
 typedef int GLsizei_;
@@ -1052,12 +1053,31 @@ static void g_glShaderSource(GLuint_ shader, GLsizei_ count, const char *const *
     }
     src[o] = 0;
     char *v = strstr(src, "#version 310 es");
-    if (v) v[11] = '2'; /* 320 es */
+    if (v) v[10] = '2'; /* "#version 310 es" -> 320 es */
     char *ext = strstr(src, "#extension GL_OES_shader_io_blocks");
     if (ext) {
         char *eol = strchr(ext, '\n');
         memset(ext, ' ', eol ? (size_t)(eol - ext) : strlen(ext));
         ext[0] = '/', ext[1] = '/';
+    }
+    /* Redeclaring the built-in ("out float gl_ClipDistance[N];") is desktop GLSL only: drop it. */
+    for (char *r = strstr(src, "out float gl_ClipDistance"); r; r = strstr(r, "out float gl_ClipDistance")) {
+        r[0] = '/';
+        r[1] = '/';
+        r += 2;
+    }
+    /* Spike: indexing gl_ClipDistance with a variable needs a sized redeclaration on GLES, which Adreno rejects;
+       send the writes to a plain array instead (no user clip planes) to see whether that is the link failure. */
+    if (strstr(src, "gl_ClipDistance") && strstr(src, "gl_Position") && !getenv("UTL_KEEP_CLIPDISTANCE")) {
+        char *line = strstr(src, "#extension GL_EXT_clip_cull_distance");
+        if (!line) line = strstr(src, "#version");
+        char *eol = line ? strchr(line, '\n') : NULL;
+        if (eol) {
+            static const char add[] = "#define gl_ClipDistance utl_ClipDistance\nhighp float utl_ClipDistance[8];\n";
+            size_t at = (size_t)(eol + 1 - src);
+            memmove(src + at + sizeof add - 1, src + at, strlen(src + at) + 1);
+            memcpy(src + at, add, sizeof add - 1);
+        }
     }
     if (strstr(src, "gl_ClipDistance") && !strstr(src, "GL_EXT_clip_cull_distance")) {
         char *line = strstr(src, "#version");
@@ -1069,10 +1089,36 @@ static void g_glShaderSource(GLuint_ shader, GLsizei_ count, const char *const *
             memcpy(src + at, add, sizeof add - 1);
         }
     }
+    if (getenv("UTL_SHADER_DUMP")) { /* debug: the source the driver gets, by shader id */
+        char path[600];
+        snprintf(path, sizeof path, "%s/shader-%u.glsl", getenv("UTL_SHADER_DUMP"), shader);
+        FILE *f = fopen(path, "w");
+        if (f) {
+            fputs(src, f);
+            fclose(f);
+        }
+    }
     const char *one = src;
     real_glShaderSource(shader, 1, &one, NULL);
     free(src);
 }
+/* Logs why a program failed to link (XOpenGL only says "Failed linking"). */
+static void (*real_glLinkProgram)(GLuint_);
+static void (*gl_GetProgramiv)(GLuint_, unsigned int, GLint_ *);
+static void (*gl_GetProgramInfoLog)(GLuint_, GLsizei_, GLsizei_ *, char *);
+static void g_glLinkProgram(GLuint_ prog) {
+    real_glLinkProgram(prog);
+    GLint_ ok = 1;
+    if (gl_GetProgramiv) gl_GetProgramiv(prog, 0x8B82 /* GL_LINK_STATUS */, &ok);
+    if (!ok && gl_GetProgramInfoLog) {
+        char log[2048];
+        GLsizei_ n = 0;
+        gl_GetProgramInfoLog(prog, sizeof log - 1, &n, log);
+        log[n > 0 ? n : 0] = 0;
+        utl_log("glLinkProgram(%u) failed: %s", prog, log);
+    }
+}
+
 static void *g_SDL_GL_GetProcAddress(const char *name) {
     static void *(*real)(const char *);
     if (!real) real = (void *(*)(const char *))utl_external_lookup("SDL_GL_GetProcAddress");
@@ -1081,20 +1127,64 @@ static void *g_SDL_GL_GetProcAddress(const char *name) {
         real_glShaderSource = (void (*)(GLuint_, GLsizei_, const char *const *, const GLint_ *))f;
         return (void *)g_glShaderSource;
     }
+    if (f && name && strcmp(name, "glLinkProgram") == 0) {
+        real_glLinkProgram = (void (*)(GLuint_))f;
+        gl_GetProgramiv = (void (*)(GLuint_, unsigned int, GLint_ *))real("glGetProgramiv");
+        gl_GetProgramInfoLog = (void (*)(GLuint_, GLsizei_, GLsizei_ *, char *))real("glGetProgramInfoLog");
+        return (void *)g_glLinkProgram;
+    }
     return f;
+}
+
+/* SDL re-chooses the EGL config from the current GL attributes whenever Android recreates the window surface
+   (onNativeSurfaceChanged after a resume). Unreal 227's XOpenGLDrv sets its own framebuffer attributes after
+   SDLDrv's window (and the surface its context uses) exists, so the surface recreated on resume had a
+   different config than the context: EGL_BAD_MATCH on every eglMakeCurrent, black screen. Once the GL window
+   exists, the attributes that select the framebuffer config are kept as they were (context attributes still pass). */
+static bool g_SDL_GL_SetAttribute(int attr, int value) {
+    static bool (*real)(int, int);
+    if (!real) real = (bool (*)(int, int))utl_external_lookup("SDL_GL_SetAttribute");
+    const bool config_attr = (attr >= 0 && attr <= 15) || attr == 22 /* FRAMEBUFFER_SRGB_CAPABLE */ ||
+                             attr == 26 /* FLOATBUFFERS */;
+    /* "The window exists": SDLDrv creates it with SDL_CreateWindowWithProperties, so ask SDL. */
+    static void **(*get_windows)(int *);
+    static void (*sdl_free)(void *);
+    if (!get_windows) get_windows = (void **(*)(int *))utl_external_lookup("SDL_GetWindows");
+    if (!sdl_free) sdl_free = (void (*)(void *))utl_external_lookup("SDL_free");
+    int n = 0;
+    void **list = config_attr && get_windows ? get_windows(&n) : NULL;
+    if (list && sdl_free) sdl_free(list);
+    if (n > 0) {
+        utl_log("SDL_GL_SetAttribute(%d, %d) ignored: the window's framebuffer config is fixed", attr, value);
+        return true;
+    }
+    return real(attr, value);
 }
 
 /* Android SDL allows one window. Unreal 227's XOpenGLDrv creates its own while SDLDrv's is open: when Android
    refuses a second window, hand back the existing one, and ignore the matching destroy. */
 static void *alias_window;
 static int alias_count;
+/* OpenGL (ES) renderers present with SDL_GL_SwapWindow: count those frames like vkQueuePresentKHR above (look-axis
+   scaling, gyro draining once per frame, FPS overlay). Unreal 227's XOpenGLDrv. */
+static bool g_SDL_GL_SwapWindow(void *win) {
+    static bool (*real)(void *);
+    if (!real) real = (bool (*)(void *))utl_external_lookup("SDL_GL_SwapWindow");
+    bool ok = real(win);
+    if (utl_frames_shared) __atomic_fetch_add(utl_frames_shared, 1, __ATOMIC_RELAXED);
+    if (utl_frames_file) __atomic_fetch_add(utl_frames_file, 1, __ATOMIC_RELAXED);
+    return ok;
+}
+
 static void *g_SDL_CreateWindow(const char *title, int w, int h, uint64_t flags) {
     static void *(*real)(const char *, int, int, uint64_t);
     static void **(*get_windows)(int *);
     static void (*sdl_free)(void *);
     if (!real) real = (void *(*)(const char *, int, int, uint64_t))utl_external_lookup("SDL_CreateWindow");
     void *win = real(title, w, h, flags);
-    if (win) return win;
+    if (win) {
+        return win;
+    }
     if (!get_windows) get_windows = (void **(*)(int *))utl_external_lookup("SDL_GetWindows");
     if (!sdl_free) sdl_free = (void (*)(void *))utl_external_lookup("SDL_free");
     int n = 0;
@@ -1225,6 +1315,38 @@ static int g_SDL_SetClipboardText(const char *text) {
     return real ? real(text) : 0;
 }
 
+/* Unreal 227 keeps the clipboard in its own Core (appClipboardCopy/appClipboardPaste, wchar_t = UTF-32) instead of
+   SDL's, so PadUI's "utandroid:" channel is caught here: commands are run, and a reply is stored with the real
+   appClipboardCopy, so the game's next paste returns it. UT 469 goes through SDL_SetClipboardText above. */
+static void g_appClipboardCopy(const wchar_t *w) {
+    static void (*real)(const wchar_t *);
+    if (!real) real = (void (*)(const wchar_t *))utl_sym(NULL, "_Z16appClipboardCopyPKw");
+    if (w && utl_handheld_command) {
+        static const wchar_t prefix[] = L"utandroid:";
+        if (wcsncmp(w, prefix, 10) == 0) {
+            char cmd[512];
+            size_t n = 0;
+            for (const wchar_t *p = w + 10; *p && n < sizeof cmd - 1; p++) cmd[n++] = *p < 128 ? (char)*p : '?';
+            cmd[n] = 0;
+            const char *reply = utl_handheld_command(cmd);
+            if (reply && *reply && real) {
+                wchar_t wr[512];
+                size_t i = 0;
+                for (; reply[i] && i < 511; i++) wr[i] = (unsigned char)reply[i];
+                wr[i] = 0;
+                real(wr);
+            }
+            return;
+        }
+    }
+    if (real) real(w);
+}
+
+void *utl_shim_preempt(const char *name) {
+    if (strcmp(name, "_Z16appClipboardCopyPKw") == 0) return (void *)g_appClipboardCopy;
+    return NULL;
+}
+
 static char *g_SDL_GetClipboardText(void) {
     static char *(*real)(void);
     static char *(*sdl_strdup)(const char *);
@@ -1324,7 +1446,7 @@ static const shim_entry table[] = {
     S("pthread_create", g_pthread_create),
     S("dlopen", g_dlopen), S("dlsym", g_dlsym), S("dlclose", g_dlclose), S("dlerror", g_dlerror),
     S("dladdr", g_dladdr), S("dl_iterate_phdr", g_dl_iterate_phdr), S("_dl_find_object", g_dl_find_object),
-    S("__libc_start_main", g_libc_start_main), S("exit", g_exit), S("SDL_SetHint", g_SDL_SetHint), S("SDL_CreateWindow", g_SDL_CreateWindow), S("SDL_GL_GetProcAddress", g_SDL_GL_GetProcAddress), S("SDL_DestroyWindow", g_SDL_DestroyWindow), S("SDL_Vulkan_CreateSurface", g_SDL_Vulkan_CreateSurface),
+    S("__libc_start_main", g_libc_start_main), S("exit", g_exit), S("SDL_SetHint", g_SDL_SetHint), S("SDL_CreateWindow", g_SDL_CreateWindow), S("SDL_GL_SetAttribute", g_SDL_GL_SetAttribute), S("SDL_GL_SwapWindow", g_SDL_GL_SwapWindow), S("SDL_GL_GetProcAddress", g_SDL_GL_GetProcAddress), S("SDL_DestroyWindow", g_SDL_DestroyWindow), S("SDL_Vulkan_CreateSurface", g_SDL_Vulkan_CreateSurface),
     S("SDL_PollEvent", g_SDL_PollEvent), S("SDL_SetClipboardText", g_SDL_SetClipboardText),
     S("SDL_GetClipboardText", g_SDL_GetClipboardText), S("fopen", g_fopen), S("fopen64", g_fopen), S("SDL_GetJoysticks", g_SDL_GetJoysticks), S("alcOpenDevice", g_alcOpenDevice), S("alcCloseDevice", g_alcCloseDevice), S("SDL_LoadBMP", g_SDL_LoadBMP), S("SDL_ShowMessageBox", g_SDL_ShowMessageBox), S("SDL_ShowSimpleMessageBox", g_SDL_ShowSimpleMessageBox), S("TTF_OpenFont", g_TTF_OpenFont),
     S("iconv_open", g_iconv_open), S("iconv", g_iconv), S("iconv_close", g_iconv_close), S("bcmp", g_bcmp), S("__fprintf_chk", g_fprintf_chk),

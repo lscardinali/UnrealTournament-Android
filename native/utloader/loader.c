@@ -146,6 +146,13 @@ typedef struct {
 static int resolve(const char *name, int weak, resolved *out) {
     const uint32_t gh = gnu_hash(name), sh = sysv_hash(name);
     void *p;
+    /* A few game functions the shim replaces even though a loaded module defines them (utl_shim_preempt). */
+    if ((p = utl_shim_preempt(name))) {
+        out->module = NULL;
+        out->sym = NULL;
+        out->addr = (uintptr_t)p;
+        return 1;
+    }
     for (utl_module *m = modules; m; m = m->next) {
         const ElfW(Sym) *s = module_find(m, name, gh, sh);
         if (s) {

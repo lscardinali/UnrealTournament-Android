@@ -23,6 +23,23 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    // One app per game, same code (setup/Product.kt picks the game from BuildConfig.GAME):
+    //   ut      Unreal Tournament (OldUnreal 469)            com.lscardinali.unrealtournament
+    //   unreal  Unreal Gold (OldUnreal 227, XOpenGL on GLES)  com.lscardinali.unreal
+    flavorDimensions += "game"
+    productFlavors {
+        create("ut") {
+            dimension = "game"
+            isDefault = true
+            buildConfigField("String", "GAME", "\"ut\"")
+        }
+        create("unreal") {
+            dimension = "game"
+            applicationId = "com.lscardinali.unreal"
+            buildConfigField("String", "GAME", "\"unreal\"")
+        }
+    }
+
     // Native libraries extracted to nativeLibraryDir (smaller download; the loader dlopens them by name).
     packaging {
         jniLibs { useLegacyPackaging = true }

@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.lscardinali.unrealtournament.runtime.GameConfig
+import com.lscardinali.unrealtournament.runtime.UnrealConfig
 import org.libsdl.app.SDLActivity
 import java.io.File
 
@@ -49,16 +50,27 @@ class NativeGameActivity : SDLActivity() {
         val bounds = windowManager.maximumWindowMetrics.bounds
         val width = maxOf(bounds.width(), bounds.height())
         val height = minOf(bounds.width(), bounds.height())
-        // Spike: "--es game unreal" runs Unreal 227 from files/unreal (SystemARM64/unreal-bin-arm64, own home).
-        if (intent.getStringExtra("game") == "unreal") {
+        // "--es game unreal" (the Unreal app's default): Unreal 227 from files/unreal (SystemARM64/unreal-bin-arm64,
+        // ini files next to it, own home). Same overlays, gyro and touchpad as UT below.
+        val isUnreal = intent.getStringExtra("game") == "unreal"
+        if (isUnreal) {
             val unreal = File(filesDir, "unreal")
             android.system.Os.setenv("UTL_SYSTEM_DIR", File(unreal, "SystemARM64").path, true)
             android.system.Os.setenv("UTL_EXE", "unreal-bin-arm64", true)
             android.system.Os.setenv("UTL_HOME", File(filesDir, "home-unreal").apply { mkdirs() }.path, true)
-            FramesFile.create(this)
-            super.onCreate(savedInstanceState)
-            return
+            if (intent.getBooleanExtra("shaderdump", false))
+                android.system.Os.setenv("UTL_SHADER_DUMP", File(filesDir, "logs/shaders").apply { mkdirs() }.path, true)
+            File(unreal, "Save").mkdirs()
+            UnrealConfig.applyAll(this, unreal, width, height)
+        } else {
+            configureUT(width, height)
         }
+        FramesFile.create(this)
+        super.onCreate(savedInstanceState)
+        setupOverlays()
+    }
+
+    private fun configureUT(width: Int, height: Int) {
         val ini = File(filesDir, "home/.utpg/System")
         for (marker in listOf("Running.ini", "UnrealTournament.crash")) File(ini, marker).delete()
         File(gameDir, "Save").mkdirs() // UT's SavePath=../Save (the install doesn't ship the folder)
@@ -68,11 +80,9 @@ class NativeGameActivity : SDLActivity() {
         val vkDebug = intent.getBooleanExtra("vkdebug", false)
         GameConfig.apply(File(ini, "UnrealTournament.ini"), File(systemDir, "Default.ini"),
                          mapOf("VulkanDrv.VulkanRenderDevice" to mapOf("VkDebug" to if (vkDebug) "True" else "False")))
-        // Frames file for the FPS overlay: the loader counts presented frames into it.
-        FramesFile.create(this)
+    }
 
-        super.onCreate(savedInstanceState)
-
+    private fun setupOverlays() {
         val full = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         // The loader's shared state also carries the "performance overlay" handheld setting (PadUI's Handheld
         // Settings window, L3+R3): follow it every frame.

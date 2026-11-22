@@ -16,6 +16,9 @@ where it runs at a locked 120 fps at 1920×1080.
 > **[donate to OldUnreal](https://www.oldunreal.com/phpBB3/donate)** to help cover their servers and development
 > hardware, and join their forums and wiki.
 
+> **Also from the same code: [Unreal Gold](README-UnrealGold.md)** (Unreal and Return to Na Pali on the OldUnreal
+> 227 patch), as a separate app.
+
 **The app contains no game files.** On first launch it downloads the game from OldUnreal's servers, the same way
 OldUnreal's official installers do.
 
@@ -120,7 +123,8 @@ The build runs on Windows with Git Bash, Android Studio (its JDK and the Android
 3. PadUI (the controller UI, UnrealScript): `bash native/padui/build-padui.sh`. Needs a Windows install of UT with
    the 469 patch in `UnrealTournament/` (for `UCC.exe`). It writes `PadUI.u`/`PadUI.int` into the app's assets
    (already committed).
-4. The app: `cd Android && ./gradlew assembleRelease`. Release signing reads `Android/keystore.properties`
+4. The app: `cd Android && ./gradlew assembleUtRelease` (UT) or `assembleUnrealRelease` (Unreal Gold, see
+   [README-UnrealGold.md](README-UnrealGold.md)); `assembleRelease` builds both. Release signing reads `Android/keystore.properties`
    (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); without it the release build is signed with the debug
    key.
 
@@ -128,8 +132,8 @@ Maintenance: `./gradlew assembleRelease -PdebuggableRelease` builds the same rel
 `adb shell run-as` can reach an installed copy (for example to back up or restore saves). Installing the normal
 build over it keeps the data.
 
-PC unit tests (the CD image reader and map decompressor against real data, when present):
-`./gradlew :app:testDebugUnitTest`.
+PC unit tests (the CD image reader, map decompressor and both installers against real data, when present):
+`./gradlew :app:testUtDebugUnitTest`.
 
 ## How it works
 
@@ -140,7 +144,7 @@ PC unit tests (the CD image reader and map decompressor against real data, when 
   independent look, gyro axes) and turns it into menu keys.
 - `native/padui`: an UnrealScript root window that gives every UWindow dialog a D-pad focus box, the pad keyboard
   and the Handheld Settings window.
-- `Android/app`: the setup (download, CD image reader, `.uz` map decompressor, installer), the game activity,
+- `Android/app`: one app per game as build flavors (`ut`, `unreal`; `setup/Product.kt` holds what differs): the setup (download, CD image reader, `.uz` map decompressor, installer), the game activity,
   overlays and ini defaults.
 - `docs/`: design notes and measurements (loader design, performance, controller, setup, small-screen UI, aim
   assist). `docs/history/` keeps the notes from earlier approaches (the X11 build, alternatives considered).
