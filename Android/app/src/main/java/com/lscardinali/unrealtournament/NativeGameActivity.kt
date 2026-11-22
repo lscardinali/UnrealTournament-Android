@@ -7,7 +7,6 @@ import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.lscardinali.unrealtournament.runtime.GameConfig
-import com.lscardinali.unrealtournament.runtime.GlibcProgram
 import org.libsdl.app.SDLActivity
 import java.io.File
 
@@ -24,7 +23,6 @@ import java.io.File
  * "vkdebug" — true to run VulkanDrv with the Khronos validation layer (debug builds).
  */
 class NativeGameActivity : SDLActivity() {
-    private lateinit var rt: GlibcProgram
     private var perf: PerfOverlay? = null
     private var cursor: CursorOverlay? = null
     private var gyro: GyroAim? = null
@@ -39,8 +37,10 @@ class NativeGameActivity : SDLActivity() {
     private var restX = 0f
     private var restY = 0f
 
+    private val gameDir get() = File(filesDir, "game")
+    private val systemDir get() = File(gameDir, "System")
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        rt = GlibcProgram(this)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             android.util.Log.e("utloader", "uncaught Java exception on ${t.name}", e)
@@ -55,21 +55,21 @@ class NativeGameActivity : SDLActivity() {
             android.system.Os.setenv("UTL_SYSTEM_DIR", File(unreal, "SystemARM64").path, true)
             android.system.Os.setenv("UTL_EXE", "unreal-bin-arm64", true)
             android.system.Os.setenv("UTL_HOME", File(filesDir, "home-unreal").apply { mkdirs() }.path, true)
-            VsyncWriter.create(GameSession.framesFile(this))
+            FramesFile.create(this)
             super.onCreate(savedInstanceState)
             return
         }
-        val ini = File(rt.homeDir, ".utpg/System")
+        val ini = File(filesDir, "home/.utpg/System")
         for (marker in listOf("Running.ini", "UnrealTournament.crash")) File(ini, marker).delete()
-        File(rt.gameDir, "Save").mkdirs() // UT's SavePath=../Save (the install doesn't ship the folder)
-        GameConfig.applyAll(this, ini, rt.systemDir, width, height)
+        File(gameDir, "Save").mkdirs() // UT's SavePath=../Save (the install doesn't ship the folder)
+        GameConfig.applyAll(this, ini, systemDir, width, height)
         // "vkdebug": VulkanDrv's own debug mode, which enables the Khronos validation layer (debug builds ship it in
         // src/debug/jniLibs; Android's Vulkan loader finds layers in a debuggable app's lib dir).
         val vkDebug = intent.getBooleanExtra("vkdebug", false)
-        GameConfig.apply(File(ini, "UnrealTournament.ini"), File(rt.systemDir, "Default.ini"),
+        GameConfig.apply(File(ini, "UnrealTournament.ini"), File(systemDir, "Default.ini"),
                          mapOf("VulkanDrv.VulkanRenderDevice" to mapOf("VkDebug" to if (vkDebug) "True" else "False")))
         // Frames file for the FPS overlay: the loader counts presented frames into it.
-        VsyncWriter.create(GameSession.framesFile(this))
+        FramesFile.create(this)
 
         super.onCreate(savedInstanceState)
 
@@ -89,7 +89,7 @@ class NativeGameActivity : SDLActivity() {
             it.start()
         }
         gyro = GyroAim(this) { yaw, pitch -> nativeGyro(yaw, pitch) }
-        perf = PerfOverlay(this, GameSession.framesFile(this), inProcess = true) // shown per the handheld setting
+        perf = PerfOverlay(this, FramesFile.path(this), inProcess = true) // shown per the handheld setting
     }
 
     // libutloader.so is last: SDL calls its SDL_main.

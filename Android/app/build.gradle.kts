@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -21,16 +23,28 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
-    // The glibc loader (libld-linux.so) must be extracted to nativeLibraryDir so it can be exec'd.
+    // Native libraries extracted to nativeLibraryDir (smaller download; the loader dlopens them by name).
     packaging {
         jniLibs { useLegacyPackaging = true }
     }
 
+    // Release signing: Android/keystore.properties (storeFile, storePassword, keyAlias, keyPassword), kept out of git.
+    // Without it, release builds fall back to the debug key so they still build.
+    val releaseKeys = rootProject.file("keystore.properties").takeIf { it.exists() }?.let { f ->
+        Properties().apply { f.inputStream().use { load(it) } }
+    }
+    signingConfigs {
+        if (releaseKeys != null) create("release") {
+            storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
+            storePassword = releaseKeys.getProperty("storePassword")
+            keyAlias = releaseKeys.getProperty("keyAlias")
+            keyPassword = releaseKeys.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
-            // Sideloading: signed with the debug key (same signature as debug builds, so it installs over them).
-            // A real keystore is only needed for distribution.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -48,9 +62,6 @@ android {
 }
 
 dependencies {
-    // Termux:X11's X server and display activity (third_party/termux-x11; see settings.gradle.kts).
-    implementation(project(":lorie"))
-    implementation("androidx.appcompat:appcompat:1.7.1") // GameActivity extends Termux:X11's AppCompatActivity
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

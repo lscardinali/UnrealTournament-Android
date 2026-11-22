@@ -42,3 +42,9 @@ __pycache__/
 .vscode/
 .idea/
 /downloads/
+
+# Release signing key and its passwords: never commit (back them up privately)
+/Android/keystore/
+/Android/keystore.properties
+*.jks
+*.keystore
